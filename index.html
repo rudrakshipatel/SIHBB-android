@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Kala-Setu</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Kala-Setu">
+<meta name="theme-color" content="#FAF8F5">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FAF8F5;--surface:#fff;--ink:#211D1A;--muted:#6B655C;
+    --clay:#C2410C;--clay-050:#FDECD9;--indigo:#1E1B4B;--indigo-050:#ECEBF5;
+    --emerald:#059669;--emerald-050:#DCF3EA;--amber:#D97706;--amber-050:#FDF0DC;
+    --gi:#7C3AED;--gi-050:#F0E9FF;--line:#ECE4D8;
+    --sans:'Be Vietnam Pro',system-ui,sans-serif;--head:'Manrope',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
+  html,body{height:100%;overscroll-behavior:none}
+  body{font-family:var(--sans);color:var(--ink);background:#000}
+  #app{position:relative;max-width:440px;margin:0 auto;height:100dvh;background:var(--bg);overflow:hidden;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='6' height='6'><circle cx='1' cy='1' r='.5' fill='%23e9dfd0' opacity='.5'/></svg>");}
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;transform:translateX(100%);opacity:0;
+    transition:transform .34s cubic-bezier(.4,0,.2,1),opacity .34s;pointer-events:none;visibility:hidden}
+  .screen.active{transform:translateX(0);opacity:1;pointer-events:auto;visibility:visible;z-index:2}
+  .screen.back{transform:translateX(-24%)}
+  @media (prefers-reduced-motion:reduce){.screen{transition:none}}
+  /* iOS chrome */
+  .sb{height:calc(env(safe-area-inset-top,20px) + 26px);display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 4px 30px;font-family:var(--head);font-weight:700;font-size:14px;flex:0 0 auto}
+  .sb .r{display:flex;gap:6px;align-items:center;font-size:13px}
+  .body{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 22px 26px}
+  .foot{flex:0 0 auto;padding:10px 22px calc(env(safe-area-inset-bottom,16px) + 14px)}
+  /* type */
+  h1.t{font-family:var(--head);font-weight:800;font-size:30px;line-height:1.12;letter-spacing:-.02em;color:var(--indigo)}
+  .sub{color:var(--muted);font-size:15px;margin-top:6px;line-height:1.45}
+  .eyebrow{font-family:var(--head);font-weight:700;font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--clay)}
+  .wordmark{font-family:var(--head);font-weight:800;font-size:19px;color:var(--indigo)}
+  /* components */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:0 1px 2px rgba(33,29,26,.04),0 12px 30px rgba(33,29,26,.05)}
+  .btn{background:var(--clay);color:#fff;border:none;border-radius:18px;font-family:var(--head);font-weight:700;font-size:17px;padding:17px;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:transform .08s}
+  .btn:active{transform:scale(.98)}
+  .btn.ind{background:var(--indigo)} .btn.soft{background:var(--clay-050);color:var(--clay)}
+  .btn.ghost{background:transparent;color:var(--indigo);border:1.5px solid var(--line)}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--head);font-weight:700;font-size:12px;padding:6px 11px;border-radius:999px}
+  .chip.ai{background:var(--clay-050);color:var(--clay)} .chip.ok{background:var(--emerald-050);color:var(--emerald)}
+  .chip.gi{background:var(--gi-050);color:var(--gi)} .chip.ind{background:var(--indigo-050);color:var(--indigo)} .chip.b2b{background:#ece8fb;color:#5b46c0}
+  .row{display:flex;gap:11px}.between{display:flex;justify-content:space-between;align-items:center;gap:11px}
+  .grow{flex:1}.wrap{flex-wrap:wrap}.mt{margin-top:16px}.mt8{margin-top:9px}.center{text-align:center}
+  .back-btn{font-size:26px;color:var(--ink);background:none;border:none;cursor:pointer;line-height:1;padding:0}
+  .logo{width:34px;height:34px;border-radius:10px;background:conic-gradient(from 210deg,var(--clay),#e07a44,var(--clay));display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--head);font-weight:800;font-size:17px;box-shadow:0 3px 9px rgba(194,65,12,.35)}
+  .avatar{width:50px;height:50px;border-radius:15px;background:linear-gradient(135deg,#6d5efc,#c2410c);display:flex;align-items:center;justify-content:center;font-size:24px}
+  .lang{background:var(--surface);border:1.5px solid var(--line);border-radius:20px;padding:16px 8px;text-align:center;cursor:pointer;transition:.15s}
+  .lang .s{font-size:24px;font-weight:700;color:var(--ink);font-family:var(--head)} .lang .e{font-size:11px;color:var(--muted);letter-spacing:.06em;margin-top:3px}
+  .lang.sel{border-color:var(--clay);box-shadow:0 0 0 3px var(--clay-050)}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:16px;flex:1;cursor:pointer}
+  .kpi .n{font-family:var(--head);font-weight:800;font-size:24px;color:var(--indigo)} .kpi .l{font-size:12px;color:var(--muted);margin-top:2px}
+  .meter{height:10px;border-radius:6px;background:var(--indigo-050);overflow:hidden}.meter>span{display:block;height:100%;background:var(--clay);border-radius:6px;transition:width .5s}
+  .tabs{flex:0 0 auto;height:calc(env(safe-area-inset-bottom,16px) + 62px);background:rgba(255,255,255,.92);backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:9px 6px calc(env(safe-area-inset-bottom,16px))}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:3px;font-family:var(--head);font-weight:600;font-size:10px;color:var(--muted);cursor:pointer;background:none;border:none}
+  .tab .i{font-size:21px;filter:grayscale(1);opacity:.55}.tab.on{color:var(--clay)}.tab.on .i{filter:none;opacity:1}
+  .mic{width:128px;height:128px;border-radius:50%;background:var(--clay);display:flex;align-items:center;justify-content:center;font-size:50px;color:#fff;box-shadow:0 14px 34px rgba(194,65,12,.4),0 0 0 12px rgba(194,65,12,.12);margin:0 auto;cursor:pointer}
+  .mic.rec{animation:pulse 1.2s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 14px 34px rgba(194,65,12,.4),0 0 0 12px rgba(194,65,12,.12)}50%{box-shadow:0 14px 34px rgba(194,65,12,.5),0 0 0 20px rgba(194,65,12,.06)}}
+  .wave{display:flex;align-items:center;justify-content:center;gap:4px;height:38px;margin-top:16px}
+  .wave i{width:4px;border-radius:3px;background:var(--clay);display:block;animation:w 1s infinite ease-in-out}
+  @keyframes w{0%,100%{height:8px}50%{height:32px}}
+  .field{background:#faf6f0;border:1px solid var(--line);border-radius:16px;padding:14px}
+  .flabel{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+  .fval{font-size:15.5px;color:var(--ink);margin-top:4px;font-weight:500}
+  .studio{border-radius:20px;height:172px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,#fff,#f1ece3)}
+  .slider{height:7px;border-radius:5px;background:var(--indigo-050);position:relative;margin:11px 0}
+  .slider>u{position:absolute;left:0;top:0;height:100%;border-radius:5px;background:var(--clay)}
+  .slider>b{position:absolute;top:-7px;width:20px;height:20px;border-radius:50%;background:#fff;border:3px solid var(--clay);box-shadow:0 2px 6px rgba(0,0,0,.15)}
+  .ondc{background:linear-gradient(135deg,#1e1b4b,#2f2a63);color:#fff;border-radius:22px;padding:16px}
+  .node{width:9px;height:9px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 4px rgba(74,222,128,.25);display:inline-block}
+  .qr{width:172px;height:172px;border-radius:18px;background:repeating-conic-gradient(#1e1b4b 0 25%,#fff 0 50%) 0 0/24px 24px;border:9px solid #fff;box-shadow:0 10px 24px rgba(0,0,0,.12);margin:0 auto}
+  .prog-stage{display:flex;align-items:center;gap:12px;padding:11px 0;font-size:15px;color:var(--muted);opacity:.5;transition:.3s}
+  .prog-stage.done{opacity:1;color:var(--ink)} .prog-stage.now{opacity:1;color:var(--ink);font-weight:600}
+  .install-hint{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;background:var(--indigo);color:#fff;font-family:var(--head);font-size:12px;padding:9px 14px;border-radius:12px;z-index:99;max-width:88%;text-align:center;box-shadow:0 8px 20px rgba(0,0,0,.3)}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- 1 LANGUAGE -->
+<section class="screen active" id="s-language">
+  <div class="sb"><span>9:41</span><span class="r">✦ ▾ 🔋</span></div>
+  <div class="body">
+    <div class="row" style="align-items:center;gap:10px;margin-top:4px"><div class="logo">क</div><span class="wordmark">Kala-Setu</span></div>
+    <h1 class="t" style="margin-top:26px">Choose your<br>language</h1>
+    <div style="font-family:var(--head);font-size:18px;color:var(--clay);margin-top:5px;font-weight:600">अपनी भाषा चुनें</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px" id="lang-grid">
+      <div class="lang sel" data-l="हिन्दी"><div class="s">हिन्दी</div><div class="e">HINDI ✓</div></div>
+      <div class="lang" data-l="বাংলা"><div class="s">বাংলা</div><div class="e">BENGALI</div></div>
+      <div class="lang" data-l="தமிழ்"><div class="s">தமிழ்</div><div class="e">TAMIL</div></div>
+      <div class="lang" data-l="తెలుగు"><div class="s">తెలుగు</div><div class="e">TELUGU</div></div>
+      <div class="lang" data-l="ಕನ್ನಡ"><div class="s">ಕನ್ನಡ</div><div class="e">KANNADA</div></div>
+      <div class="lang" data-l="मराठी"><div class="s">मराठी</div><div class="e">MARATHI</div></div>
+    </div>
+  </div>
+  <div class="foot">
+    <button class="btn" onclick="go('home')">Continue <span style="font-size:19px">🎙️</span></button>
+    <div class="center" style="color:var(--muted);font-size:12px;margin-top:12px">Powered by <b style="color:var(--indigo)">BHASHINI</b></div>
+  </div>
+</section>
+
+<!-- 2 HOME -->
+<section class="screen" id="s-home">
+  <div class="sb"><span>9:41</span><span class="r">✦ ▾ 🔋</span></div>
+  <div class="body">
+    <div class="between" style="margin-top:4px">
+      <div><div class="eyebrow">नमस्ते 🙏</div><h1 class="t" style="font-size:26px">Lakshmi Devi</h1>
+        <div class="mt8"><span class="chip ok">✓ Verified artisan</span></div></div>
+      <div class="avatar">🧑🏽‍🎨</div>
+    </div>
+    <button class="btn mt" style="min-height:64px;font-size:18px" onclick="go('voice')">📷 Add a product <span style="opacity:.8">🎙️</span></button>
+    <div class="row mt">
+      <div class="kpi"><div class="n">6</div><div class="l">Products live</div></div>
+      <div class="kpi"><div class="n">₹12,480</div><div class="l">Earned via ONDC</div></div>
+    </div>
+    <div class="ondc mt"><div class="between"><span style="font-family:var(--head);font-weight:700;font-size:15px"><span class="node"></span> &nbsp;Live on ONDC network</span><span style="font-size:12px;opacity:.8">2 items</span></div>
+      <div style="font-size:13px;opacity:.85;margin-top:8px">Discoverable on Paytm, PhonePe &amp; GeM buyer apps — no middleman.</div></div>
+    <div class="card mt"><div style="padding:15px">
+      <div class="between"><span class="chip b2b">BULK RFQ</span><span style="font-size:12px;color:var(--muted)">2h ago</span></div>
+      <div style="font-weight:700;font-family:var(--head);margin-top:8px;font-size:15px">Boutique buyer · 500 units</div>
+      <div style="font-size:13px;color:var(--muted)">₹600–900/unit · Diwali gifting</div>
+    </div></div>
+  </div>
+  <div class="tabs">
+    <button class="tab on"><span class="i">🏠</span>Home</button><button class="tab" onclick="go('voice')"><span class="i">📦</span>Products</button>
+    <button class="tab"><span class="i">💬</span>Inquiries</button><button class="tab"><span class="i">📊</span>Insights</button>
+    <button class="tab" onclick="go('profile')"><span class="i">👤</span>Profile</button>
+  </div>
+</section>
+
+<!-- 3 VOICE -->
+<section class="screen" id="s-voice">
+  <div class="sb"><span>9:41</span><span class="r">✦ ▾ 🔋</span></div>
+  <div class="body">
+    <div class="between" style="margin-top:2px"><button class="back-btn" onclick="back('home')">‹</button><span class="eyebrow">Step 2 of 6</span><span style="font-size:14px;color:var(--muted)">Save</span></div>
+    <div class="meter mt8"><span style="width:33%"></span></div>
+    <h1 class="t" style="margin-top:22px;font-size:27px">Describe your<br>product</h1>
+    <div class="sub">Speak in your language — say the material, size and how you made it.</div>
+    <div style="margin-top:30px">
+      <div class="mic" id="mic" onclick="toggleMic()">🎙️</div>
+      <div class="wave" id="wave" style="visibility:hidden"><i></i><i style="animation-delay:.1s"></i><i style="animation-delay:.2s"></i><i style="animation-delay:.15s"></i><i style="animation-delay:.05s"></i><i style="animation-delay:.25s"></i><i style="animation-delay:.12s"></i></div>
+      <div id="mic-label" class="center" style="font-family:var(--head);font-weight:700;color:var(--muted);font-size:14px;margin-top:8px">Tap to speak</div>
+    </div>
+    <div class="field mt"><div class="flabel">Transcript · हिन्दी (editable)</div>
+      <div class="fval" id="transcript" contenteditable="true" style="outline:none">"यह हाथ से बुनी नीली सिल्क शॉल है, प्राकृतिक रंग, 200×70 सेमी, तीन दिन में बनी।"</div></div>
+  </div>
+  <div class="foot"><button class="btn" onclick="go('processing')">Create my catalog with AI ✨</button></div>
+</section>
+
+<!-- 3b PROCESSING -->
+<section class="screen" id="s-processing">
+  <div class="sb"><span>9:41</span><span class="r">✦ ▾ 🔋</span></div>
+  <div class="body" style="justify-content:center;display:flex;flex-direction:column">
+    <h1 class="t center" style="font-size:26px">✨ Creating your<br>catalog</h1>
+    <div style="margin:24px auto 0;max-width:280px" id="stages">
+      <div class="prog-stage" data-i="0"><span class=" i">⚪</span> Understanding your product</div>
+      <div class="prog-stage" data-i="1"><span class="i">⚪</span> Identifying the craft &amp; GI tag</div>
+      <div class="prog-stage" data-i="2"><span class="i">⚪</span> Removing the background</div>
+      <div class="prog-stage" data-i="3"><span class="i">⚪</span> Writing the catalog</div>
+      <div class="prog-stage" data-i="4"><span class="i">⚪</span> Preparing fair price &amp; markets</div>
+    </div>
+    <div class="meter" style="margin:26px 30px 0"><span id="proc-bar" style="width:6%"></span></div>
+  </div>
+</section>
+
+<!-- 4 STUDIO + GI -->
+<section class="screen" id="s-studio">
+  <div class="sb"><span>9:41</span><span class="r">✦ ▾ 🔋</span></div>
+  <div class="body">
+    <div class="between" style="margin-top:2px"><button class="back-btn" onclick="back('voice')">‹</button><span class="eyebrow">AI Studio</span><span class="chip ok">✓ Sharp</span></div>
+    <h1 class="t" style="margin-top:16px;font-size:25px">Studio-ready photo</h1>
+    <div class="sub">Background removed automatically — no studio needed.</div>
+    <div class="studio mt">
+      <div style="font-size:88px;filter:drop-shadow(0 16px 20px rgba(0,0,0,.18))">🧣</div>
+      <div style="position:absolute;left:12px;top:12px" class="chip ind">RMBG · 96% IoU</div>
+      <div style="position:absolute;right:12px;bottom:12px" class="chip gi">◆ GI detected</div>
+    </div>
+    <div class="card mt"><div style="padding:15px">
+      <div class="between"><span class="flabel">GI authenticity</span><span class="chip gi">Pochampally Ikat</span></div>
+      <div style="font-size:13px;color:var(--muted);margin-top:7px">Confidence 0.89 ≥ 0.85 threshold. Confirm by voice before publishing.</div>
+    </div></div>
+    <div class="row mt8 wrap" style="gap:8px"><span class="chip ind">Silk</span><span class="chip ind">Indigo</span><span class="chip ind">Natural dye</span><span class="chip ind">Handwoven</span></div>
+  </div>
+  <div class="foot"><button class="btn" onclick="go('catalog')">🎙️ Confirm &amp; continue</button></div>
+</section>
+
+<!-- 5 CATALOG -->
+<section class="screen" id="s-catalog">
+  <div class="sb"><span>9:41</span><span class="r">✦ ▾ 🔋</span></div>
+  <div class="body">
+    <div class="between" style="margin-top:2px"><button class="back-btn" onclick="back('studio')">‹</button><span class="eyebrow">Step 4 of 6</span><span style="font-size:14px;color:var(--muted)">Save</span></div>
+    <h1 class="t" style="margin-top:14px;font-size:25px">Review your catalog</h1>
+    <div class="card mt8" style="background:var(--clay-050);border-color:var(--clay-050)"><div style="padding:14px;font-size:13px;color:var(--clay)"><b>Tap any field to edit.</b> Fields marked <b>AI</b> are suggestions — editing confirms them.</div></div>
+    <div class="field mt8"><div class="between"><span class="flabel">Product name</span><span class="chip ok">✓ confirmed</span></div><div class="fval">Handwoven Indigo Silk Shawl</div></div>
+    <div class="field mt8"><div class="between"><span class="flabel">Materials</span><span class="chip ai">AI</span></div><div class="fval">Silk · Natural indigo dye</div></div>
+    <div class="field mt8"><div class="between"><span class="flabel">Cultural story</span><span class="chip ai">AI</span></div><div class="fval" style="font-size:14px">Handwoven on a pit loom using natural indigo, a technique passed down generations…</div></div>
+  </div>
+  <div class="foot"><button class="btn" onclick="go('pricing')">Looks good — set price</button></div>
+</section>
+
+<!-- 6 PRICING -->
+<section class="screen" id="s-pricing">
+  <div class="sb"><span>9:41</span><span class="r">✦ ▾ 🔋</span></div>
+  <div class="body">
+    <div class="between" style="margin-top:2px"><button class="back-btn" onclick="back('catalog')">‹</button><span class="eyebrow">Step 5 of 6</span></div>
+    <h1 class="t" style="margin-top:12px;font-size:25px">Fair price for<br>your work</h1>
+    <div class="card mt8"><div style="padding:16px 16px 8px">
+      <div class="between"><span class="flabel">Materials ₹</span><b style="font-family:var(--head);color:var(--clay)">800</b></div>
+      <div class="slider"><u style="width:35%"></u><b style="left:33%"></b></div>
+      <div class="between"><span class="flabel">Your time × fair wage</span><b style="font-family:var(--head);color:var(--indigo)">24h × ₹60</b></div>
+      <div class="slider"><u style="width:55%"></u><b style="left:53%"></b></div>
+      <div class="between"><span class="flabel">Market demand</span><b style="font-family:var(--head);color:var(--amber)">×1.15</b></div>
+      <div class="slider"><u style="width:40%"></u><b style="left:38%"></b></div>
+    </div></div>
+    <div class="card mt8" style="background:var(--emerald-050);border-color:var(--emerald-050)"><div style="padding:16px;text-align:center">
+      <div class="flabel" style="color:var(--emerald)">Suggested fair range</div>
+      <div style="font-family:var(--head);font-weight:800;font-size:32px;color:var(--emerald);margin:3px 0">₹2,835 – 3,990</div>
+      <div style="font-size:12px;color:var(--muted)">Production cost ₹2,340 · you keep ≥20% margin · <b>you set the final price</b></div>
+    </div></div>
+    <div class="center" style="font-size:11.5px;color:var(--muted);margin-top:10px">P = (materials + hours×wage + overhead) × (1+margin) × demand</div>
+  </div>
+  <div class="foot"><button class="btn" onclick="go('market')">Confirm ₹3,200</button></div>
+</section>
+
+<!-- 7 MARKET + ONDC -->
+<section class="screen" id="s-market">
+  <div class="sb"><span>9:41</span><span class="r">✦ ▾ 🔋</span></div>
+  <div class="body">
+    <div class="between" style="margin-top:2px"><button class="back-btn" onclick="back('pricing')">‹</button><span class="eyebrow">Step 6 of 6</span></div>
+    <h1 class="t" style="margin-top:12px;font-size:25px">Best markets<br>for you</h1>
+    <div class="card mt8"><div style="padding:15px">
+      <div class="between"><b style="font-family:var(--head);font-size:15px">Boutique Retail</b><span class="row" style="align-items:center;gap:8px"><span class="chip b2b">B2B</span><b style="font-family:var(--head);color:var(--clay)">92%</b></span></div>
+      <div class="meter mt8"><span style="width:92%"></span></div>
+      <div style="font-size:12.5px;color:var(--muted);margin-top:8px">✓ Category fit · ✓ Price band ₹2–6k · ✓ GI premium</div>
+    </div></div>
+    <div class="card mt8"><div style="padding:15px">
+      <div class="between"><b style="font-family:var(--head);font-size:15px">Corporate Gifting</b><span class="row" style="align-items:center;gap:8px"><span class="chip b2b">B2B</span><b style="font-family:var(--head);color:var(--clay)">84%</b></span></div>
+      <div class="meter mt8"><span style="width:84%"></span></div>
+    </div></div>
+    <div class="ondc mt8"><div style="font-family:var(--head);font-weight:700;font-size:14px"><span class="node"></span> &nbsp;Ready to broadcast · Beckn on_search</div>
+      <div style="font-size:11.5px;opacity:.8;margin-top:7px;font-family:monospace">Ed25519 signed · bpp.kalasetu.org</div></div>
+  </div>
+  <div class="foot"><button class="btn" onclick="go('published')">🚀 Publish to ONDC network</button></div>
+</section>
+
+<!-- 8 PUBLISHED -->
+<section class="screen" id="s-published">
+  <div class="sb"><span>9:41</span><span class="r">✦ ▾ 🔋</span></div>
+  <div class="body center" style="display:flex;flex-direction:column;justify-content:center">
+    <div style="font-size:74px">🎉</div>
+    <h1 class="t" style="font-size:27px;margin-top:8px">Published!</h1>
+    <div class="sub" style="max-width:280px;margin:6px auto 0">Your shawl is live on the ONDC network and discoverable across buyer apps.</div>
+    <div class="card mt" style="margin:20px 6px 0"><div style="padding:14px"><div class="between"><span class="flabel">Public link</span><span class="chip ok">Live</span></div><div style="font-size:13px;color:var(--indigo);margin-top:5px;font-family:monospace">kala-setu.in/a/lakshmi-devi</div></div></div>
+  </div>
+  <div class="foot"><button class="btn" onclick="go('profile')">See my QR &amp; profile</button><button class="btn ghost" style="margin-top:10px" onclick="go('home')">Back to home</button></div>
+</section>
+
+<!-- 9 PROFILE / QR -->
+<section class="screen" id="s-profile">
+  <div class="sb"><span>9:41</span><span class="r">✦ ▾ 🔋</span></div>
+  <div class="body center">
+    <div class="between" style="text-align:left"><span class="eyebrow">My profile</span><span class="chip ok">✓ Verified</span></div>
+    <div class="qr mt"></div>
+    <h1 class="t" style="margin-top:16px;font-size:23px">Your exhibition QR</h1>
+    <div class="sub" style="max-width:250px;margin:6px auto 0">Print it for your stall. Visitors scan to open your live profile — it keeps working long after the mela ends.</div>
+    <div class="row mt" style="gap:9px">
+      <div class="kpi"><div class="n">55</div><div class="l">Scans</div></div>
+      <div class="kpi"><div class="n">66</div><div class="l">Views</div></div>
+      <div class="kpi"><div class="n">4</div><div class="l">Inquiries</div></div>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab" onclick="go('home')"><span class="i">🏠</span>Home</button><button class="tab"><span class="i">📦</span>Products</button>
+    <button class="tab"><span class="i">💬</span>Inquiries</button><button class="tab"><span class="i">📊</span>Insights</button>
+    <button class="tab on"><span class="i">👤</span>Profile</button>
+  </div>
+</section>
+
+</div>
+
+<script>
+  let cur = 'language';
+  function go(id){
+    const from=document.getElementById('s-'+cur), to=document.getElementById('s-'+id);
+    if(!to||id===cur)return;
+    if(from){from.classList.remove('active');from.classList.add('back');}
+    to.classList.remove('back');
+    // ensure it starts off-screen right for the slide-in
+    to.style.transition='none';to.style.transform='translateX(100%)';
+    requestAnimationFrame(()=>{to.style.transition='';to.classList.add('active');to.style.transform='';});
+    to.querySelector('.body') && (to.querySelector('.body').scrollTop=0);
+    cur=id;
+    if(id==='processing')runProcessing();
+    if(id==='voice')resetMic();
+  }
+  function back(id){
+    const from=document.getElementById('s-'+cur), to=document.getElementById('s-'+id);
+    from.classList.remove('active');
+    from.style.transition='';from.style.transform='translateX(100%)';
+    to.classList.remove('back');to.classList.add('active');to.style.transform='';
+    cur=id;
+  }
+  // language select
+  document.querySelectorAll('#lang-grid .lang').forEach(el=>el.addEventListener('click',()=>{
+    document.querySelectorAll('#lang-grid .lang').forEach(x=>{x.classList.remove('sel');x.querySelector('.e').textContent=x.querySelector('.e').textContent.replace(' ✓','');});
+    el.classList.add('sel');el.querySelector('.e').textContent+=' ✓';
+  }));
+  // mic
+  let rec=false;
+  function toggleMic(){rec=!rec;const m=document.getElementById('mic'),w=document.getElementById('wave'),l=document.getElementById('mic-label');
+    if(rec){m.classList.add('rec');m.textContent='⏹️';w.style.visibility='visible';l.textContent='Listening… सुन रहे हैं';}
+    else resetMic();}
+  function resetMic(){rec=false;const m=document.getElementById('mic'),w=document.getElementById('wave'),l=document.getElementById('mic-label');
+    if(m){m.classList.remove('rec');m.textContent='🎙️';w.style.visibility='hidden';l.textContent='Tap to speak';}}
+  // processing animation
+  function runProcessing(){
+    const stages=document.querySelectorAll('#stages .prog-stage'),bar=document.getElementById('proc-bar');
+    stages.forEach(s=>{s.classList.remove('done','now');s.querySelector('.i').textContent='⚪';});
+    bar.style.width='6%';let i=0;
+    const step=()=>{ if(i>0){stages[i-1].classList.remove('now');stages[i-1].classList.add('done');stages[i-1].querySelector('.i').textContent='✅';}
+      if(i<stages.length){stages[i].classList.add('now');stages[i].querySelector('.i').textContent='⏳';bar.style.width=(15+i*20)+'%';i++;setTimeout(step,620);}
+      else{bar.style.width='100%';setTimeout(()=>go('studio'),450);} };
+    setTimeout(step,350);
+  }
+  // one-time install hint on iOS Safari (not standalone)
+  (function(){
+    const isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+    const standalone=window.navigator.standalone||window.matchMedia('(display-mode: standalone)').matches;
+    if(isiOS && !standalone && !sessionStorage.getItem('ih')){
+      const d=document.createElement('div');d.className='install-hint';
+      d.innerHTML='Tap <b>Share</b> → <b>Add to Home Screen</b> to install Kala-Setu';
+      d.onclick=()=>d.remove();document.body.appendChild(d);
+      sessionStorage.setItem('ih','1');setTimeout(()=>d.remove(),6000);
+    }
+  })();
+</script>
+</body>
+</html>
