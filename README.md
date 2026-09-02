@@ -1,49 +1,54 @@
-# Kala-Setu — iOS App Prototype
+# Hastakala — Android App (Flutter)
 
-A standalone, **tappable, installable** iOS prototype of the Kala-Setu artisan app.
-Pure front-end (no backend, no build step) — it exists to be **tested on an iPhone**
-and to drive the SIH demo / 6-slide deck. Separate from the deployable webapp in
-[`../web`](../web).
+### Smart India Hackathon 2026 · Problem Statement SIH26090
 
-## What it is
-A clickable walkthrough of the full artisan journey, in the Kala-Setu design system:
+The **Android** companion to the [Hastakala web app](https://github.com/rudrakshipatel/SIHBB),
+built with **Flutter**. It mirrors the web app's format and Hastakala brand
+(green / cream / terracotta) with the same two-sided experience:
 
-`Language → Home → Voice cataloging (BHASHINI) → AI processing → AI Vision Studio + GI
-→ Catalog review → Fair-Value pricing → Market match → Publish to ONDC → Published → QR profile`
+- **Landing** — role selection: *I'm a Buyer* / *I'm an Artisan*, hero, trust points,
+  the six craft categories, and For-Buyers / For-Artisans cards.
+- **Buyer** (bottom nav: Home · Explore · Account) — marketplace hero, Shop-by-Category,
+  featured products, category-filtered browse, product detail with **Inquire / Request Quote**.
+- **Seller** (bottom nav: Dashboard · Products · Add · Inquiries · Profile) — dashboard with
+  greeting banner, **profile-strength ring**, stat cards with sparklines, recent inquiries,
+  my products, top insights and the QR banner; plus a voice-first "Add Product" flow outline.
 
-Tap the primary buttons to move forward, the `‹` chevron to go back, the mic to toggle
-"listening", and the language cards / bottom tabs to interact. It's a visual prototype
-— the numbers are representative, not live.
+You can switch between the Buyer and Seller sides from either home (top-right button)
+or the Account/Profile tab.
 
-## Files
-- `index.html` — the whole prototype (open this)
-- `manifest.webmanifest`, `icon-*.png`, `apple-touch-icon.png` — make it installable
-- `concept-board.html` — all screens laid out side-by-side (design reference / for slides)
-- `concept-board.artifact.html` — the same board, published as a shareable artifact
-- `reference-stitch-screen1.png` — screen 1 as rendered natively by Stitch/Gemini
+> The six product categories, artisans and sample products mirror the web app's seed data.
+> This build runs on bundled demo data (no backend) so it works fully offline — the same
+> "demo mode" philosophy as the web app. A shared Supabase backend can be wired in later.
 
-## Test it on iOS
+## Run
 
-**A. iOS Simulator (Mac + Xcode)**
 ```bash
-cd ios && python3 -m http.server 4321
-# then, in the Simulator's Safari:  open  http://localhost:4321
+flutter pub get
+flutter run                 # on a connected device / emulator
 ```
-In Simulator Safari: **Share → Add to Home Screen** to install it as a full-screen app,
-then launch it from the home screen (runs standalone, no browser chrome).
 
-**B. On your own iPhone (same Wi-Fi)**
+## Build an installable APK
+
 ```bash
-cd ios && python3 -m http.server 4321
-# find your Mac's LAN IP:  ipconfig getifaddr en0
-# on the iPhone, open Safari →  http://<that-ip>:4321
+flutter build apk --release
+# output: build/app/outputs/flutter-apk/app-release.apk
 ```
-Then **Share → Add to Home Screen**.
 
-**C. Quick look (any browser)**
-Just open `ios/index.html`, then use the browser's device toolbar (e.g. iPhone 15) to
-see it at phone size.
+## Project layout
 
-## Deploy it (optional)
-Because it's static, it drops onto any static host (Vercel, Netlify, GitHub Pages) —
-point the host at the `ios/` folder. This is independent of the main webapp deploy.
+```
+lib/
+  main.dart          App entry + theme
+  theme.dart         Hastakala palette + serif display style
+  data.dart          Models + mock data (categories, products, artisans, dashboard)
+  widgets.dart       Logo, product card, category tile, sparkline, profile ring
+  screens/
+    landing.dart     Role-selection landing
+    buyer.dart       Buyer shell + marketplace home + product browse
+    product_detail.dart
+    seller.dart      Seller shell + dashboard + products/add/inquiries/profile
+assets/              Logo, hero photos, and the six category images (shared with web)
+```
+
+The previous HTML/PWA iOS prototype that lived in this repo is archived under `_legacy_pwa/`.
