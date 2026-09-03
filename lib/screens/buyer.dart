@@ -4,6 +4,7 @@ import '../data.dart';
 import '../widgets.dart';
 import 'product_detail.dart';
 import 'seller.dart';
+import 'pages.dart';
 
 class BuyerShell extends StatefulWidget {
   final String? initialCategory;
@@ -139,16 +140,18 @@ class _BuyerProfile extends StatelessWidget {
           ]),
         ])),
         const SizedBox(height: 12),
-        _tile(Icons.storefront_outlined, 'Switch to Seller', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SellerShell()))),
-        _tile(Icons.home_outlined, 'Back to Landing', () => Navigator.popUntil(context, (r) => r.isFirst)),
-        _tile(Icons.favorite_border, 'Saved items', null),
-        _tile(Icons.receipt_long_outlined, 'My inquiries', null),
-        _tile(Icons.help_outline, 'Help & Support', null),
+        _nav(context, Icons.favorite_border, 'Saved items', const SavedScreen()),
+        _nav(context, Icons.receipt_long_outlined, 'My inquiries', const MyInquiriesScreen()),
+        _nav(context, Icons.help_outline, 'Help & Support', const HelpScreen()),
+        _action(context, Icons.storefront_outlined, 'Switch to Seller', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SellerShell()))),
       ])),
     ]);
   }
 
-  Widget _tile(IconData icon, String label, VoidCallback? onTap) => Card(
+  Widget _nav(BuildContext context, IconData icon, String label, Widget page) =>
+      _action(context, icon, label, () => Navigator.push(context, MaterialPageRoute(builder: (_) => page)));
+
+  Widget _action(BuildContext context, IconData icon, String label, VoidCallback onTap) => Card(
         margin: const EdgeInsets.only(bottom: 8),
         child: ListTile(leading: Icon(icon, color: AppColors.green), title: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)), trailing: const Icon(Icons.chevron_right, color: AppColors.muted), onTap: onTap),
       );

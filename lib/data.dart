@@ -146,6 +146,47 @@ const insights = <Insight>[
   Insight('Corporate Gifting', 'is your top matching segment', '92%'),
 ];
 
+class Exhibition {
+  final String name, location, dates, status;
+  final int scans, visitors, inqs;
+  const Exhibition(this.name, this.location, this.dates, this.status, this.scans, this.visitors, this.inqs);
+}
+
+const exhibitions = <Exhibition>[
+  Exhibition('Surajkund International Crafts Mela', 'Faridabad, Haryana', '1 – 16 Feb 2026', 'Ended', 230, 156, 18),
+  Exhibition('Dilli Haat Artisan Showcase', 'INA, New Delhi', '10 – 25 Sep 2026', 'Upcoming', 0, 0, 0),
+];
+
+class Order {
+  final String product, buyer, status;
+  final int amount;
+  const Order(this.product, this.buyer, this.status, this.amount);
+}
+
+const orders = <Order>[
+  Order('Terracotta Festival Diya Set', 'Giftwell Corporate', 'Delivered', 4800),
+  Order('Terracotta Decorative Elephant', 'Meera Nair', 'Delivered', 1300),
+  Order('Terracotta Decorative Elephant', 'Meera Nair', 'Shipped', 650),
+  Order('Terracotta Festival Diya Set', 'Giftwell Corporate', 'Delivered', 2400),
+];
+
+class BuyerInquiry {
+  final String product, artisan, status, when;
+  const BuyerInquiry(this.product, this.artisan, this.status, this.when);
+}
+
+const myInquiries = <BuyerInquiry>[
+  BuyerInquiry('Handloom Banarasi Silk Dupatta', 'Lakshmi Bai', 'Responded', 'yesterday'),
+  BuyerInquiry('Terracotta Decorative Elephant', 'Rekha Devi', 'Quoted', '2 days ago'),
+];
+
+const faqs = <List<String>>[
+  ['How do I inquire about a product?', 'Open any product and tap “Inquire” for a question or “Request Quote” for a bulk order. The artisan is notified and replies with details or a quote.'],
+  ['Are the artisans verified?', 'Yes — verified artisans carry a green tick. We check identity and craft authenticity before publishing.'],
+  ['How is a fair price decided?', 'Prices are cost-plus (materials + labour + a guaranteed 20% artisan margin) — never a fabricated market price.'],
+  ['Do you ship across India?', 'Yes. Delivery and logistics are arranged after an inquiry is confirmed with the artisan.'],
+];
+
 String rupee(int v) {
   final s = v.toString();
   final b = StringBuffer();

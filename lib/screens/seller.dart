@@ -4,6 +4,7 @@ import '../data.dart';
 import '../widgets.dart';
 import 'buyer.dart';
 import 'product_detail.dart';
+import 'pages.dart';
 
 class SellerShell extends StatefulWidget {
   const SellerShell({super.key});
@@ -225,15 +226,14 @@ class _SellerProfile extends StatelessWidget {
           ])),
         ])),
         const SizedBox(height: 12),
-        _tile(Icons.qr_code_2, 'My QR code', null),
-        _tile(Icons.insights_outlined, 'Insights', null),
-        _tile(Icons.event_outlined, 'Exhibitions', null),
-        _tile(Icons.payments_outlined, 'Payments', null),
-        _tile(Icons.storefront_outlined, 'Switch to Buyer', () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const BuyerShell()))),
-        _tile(Icons.home_outlined, 'Back to Landing', () => Navigator.popUntil(context, (r) => r.isFirst)),
+        _tile(context, Icons.qr_code_2, 'My QR code', const QrScreen()),
+        _tile(context, Icons.insights_outlined, 'Insights', const InsightsScreen()),
+        _tile(context, Icons.event_outlined, 'Exhibitions', const ExhibitionsScreen()),
+        _tile(context, Icons.payments_outlined, 'Payments', const PaymentsScreen()),
+        Card(margin: const EdgeInsets.only(bottom: 8), child: ListTile(leading: const Icon(Icons.storefront_outlined, color: AppColors.green), title: const Text('Switch to Buyer', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)), trailing: const Icon(Icons.chevron_right, color: AppColors.muted), onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const BuyerShell())))),
       ])),
     ]);
   }
 
-  Widget _tile(IconData icon, String label, VoidCallback? onTap) => Card(margin: const EdgeInsets.only(bottom: 8), child: ListTile(leading: Icon(icon, color: AppColors.green), title: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)), trailing: const Icon(Icons.chevron_right, color: AppColors.muted), onTap: onTap));
+  Widget _tile(BuildContext context, IconData icon, String label, Widget page) => Card(margin: const EdgeInsets.only(bottom: 8), child: ListTile(leading: Icon(icon, color: AppColors.green), title: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)), trailing: const Icon(Icons.chevron_right, color: AppColors.muted), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => page))));
 }
