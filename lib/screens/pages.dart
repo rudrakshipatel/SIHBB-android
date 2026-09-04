@@ -8,6 +8,78 @@ AppBar _bar(String title) => AppBar(title: Text(title, style: serif(size: 17, co
 
 void _snack(BuildContext c, String m) => ScaffoldMessenger.of(c).showSnackBar(SnackBar(content: Text(m)));
 
+// ---------------- Subcategories (main category → subcategory list) ----------------
+class SubcategoryScreen extends StatelessWidget {
+  final Category category;
+  const SubcategoryScreen(this.category, {super.key});
+
+  Product? _sample(String sub) {
+    for (final p in products) {
+      if (p.category == category.name && p.sub == sub) return p;
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(category.name.split(',').first, style: serif(size: 17, color: AppColors.green))),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        // header banner using the main-category photo
+        ClipRRect(borderRadius: BorderRadius.circular(16), child: Stack(children: [
+          SizedBox(height: 120, width: double.infinity, child: Image.asset(category.image, fit: BoxFit.cover)),
+          Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.black.withValues(alpha: 0.45), Colors.transparent], begin: Alignment.bottomCenter, end: Alignment.topCenter)))),
+          Positioned(left: 14, bottom: 12, right: 14, child: Text(category.name, style: serif(size: 18, color: Colors.white))),
+        ])),
+        const SizedBox(height: 16),
+        Text('Browse subcategories', style: serif(size: 15, color: AppColors.green)),
+        const SizedBox(height: 4),
+        const Text('Pick a subcategory to see its products.', style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
+        const SizedBox(height: 12),
+        for (final sub in category.subs)
+          Card(margin: const EdgeInsets.only(bottom: 10), clipBehavior: Clip.antiAlias, child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            leading: SizedBox(width: 52, height: 52, child: _leading(_sample(sub))),
+            title: Text(sub, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+            subtitle: Text(_sample(sub) == null ? 'View products' : _sample(sub)!.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+            trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CategoryProductsScreen(category: category.name, sub: sub))),
+          )),
+      ]),
+    );
+  }
+
+  Widget _leading(Product? p) {
+    if (p == null) {
+      return Container(decoration: BoxDecoration(color: AppColors.creamDeep, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.category_outlined, color: AppColors.green));
+    }
+    return ProductThumb(p, radius: 10);
+  }
+}
+
+// ---------------- Category products (filtered by category + optional sub) ----------------
+class CategoryProductsScreen extends StatelessWidget {
+  final String category;
+  final String? sub;
+  const CategoryProductsScreen({super.key, required this.category, this.sub});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = products.where((p) => p.category == category && (sub == null || p.sub == sub)).toList();
+    return Scaffold(
+      appBar: AppBar(title: Text(sub ?? category.split(',').first, style: serif(size: 17, color: AppColors.green))),
+      body: items.isEmpty
+          ? const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('No products in this subcategory yet.\nCheck back soon.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted))))
+          : GridView.builder(
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 0.72),
+              itemCount: items.length,
+              itemBuilder: (_, i) => ProductCard(items[i], onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProductDetail(items[i])))),
+            ),
+    );
+  }
+}
+
 // ---------------- QR ----------------
 class QrScreen extends StatelessWidget {
   const QrScreen({super.key});

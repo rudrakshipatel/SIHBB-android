@@ -73,6 +73,12 @@ class ProductThumb extends StatelessWidget {
   const ProductThumb(this.p, {super.key, this.radius = 12});
   @override
   Widget build(BuildContext context) {
+    if (p.image != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: Image.asset(p.image!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+      );
+    }
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
@@ -107,7 +113,7 @@ class ProductCard extends StatelessWidget {
             Text('${p.artisan} · ${p.location.split(',').last.trim()}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, color: AppColors.muted)),
             const SizedBox(height: 6),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text(rupee(p.price), style: const TextStyle(color: AppColors.terracotta, fontWeight: FontWeight.w800, fontSize: 13)),
+              Flexible(child: Text(p.priceLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.terracotta, fontWeight: FontWeight.w800, fontSize: 13))),
             ]),
           ])),
         ]),

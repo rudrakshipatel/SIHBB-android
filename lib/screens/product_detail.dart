@@ -18,9 +18,30 @@ class ProductDetail extends StatelessWidget {
         const SizedBox(height: 2),
         Text(p.nameLocal, style: const TextStyle(color: AppColors.terracotta, fontSize: 14)),
         const SizedBox(height: 8),
-        Text(rupee(p.price), style: const TextStyle(color: AppColors.terracotta, fontWeight: FontWeight.w800, fontSize: 22)),
-        const SizedBox(height: 12),
+        Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+          Flexible(child: Text(p.priceLabel, style: const TextStyle(color: AppColors.terracotta, fontWeight: FontWeight.w800, fontSize: 22))),
+          if (p.priceMax != null) const Padding(padding: EdgeInsets.only(left: 6), child: Text('approx.', style: TextStyle(color: AppColors.muted, fontSize: 12))),
+        ]),
+        const SizedBox(height: 14),
+        _label('Product Details'),
         Text(p.description, style: const TextStyle(color: AppColors.ink, height: 1.4)),
+        if (p.productInfo != null) ...[
+          const SizedBox(height: 14),
+          _label('Product Information'),
+          Text(p.productInfo!, style: const TextStyle(color: AppColors.ink, height: 1.4)),
+        ],
+        if (p.segments.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _label('Recommended Market Segments'),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final s in p.segments)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(color: AppColors.creamDeep, borderRadius: BorderRadius.circular(999)),
+                child: Text(s, style: const TextStyle(fontSize: 11.5, color: AppColors.green, fontWeight: FontWeight.w600)),
+              ),
+          ]),
+        ],
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
@@ -55,6 +76,11 @@ class ProductDetail extends StatelessWidget {
       ),
     );
   }
+
+  Widget _label(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(text, style: serif(size: 15, color: AppColors.green)),
+      );
 
   void _inquire(BuildContext context, {required bool rfq}) {
     showModalBottomSheet(

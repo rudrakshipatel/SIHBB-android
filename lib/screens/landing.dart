@@ -4,6 +4,7 @@ import '../data.dart';
 import '../widgets.dart';
 import 'buyer.dart';
 import 'seller.dart';
+import 'pages.dart';
 
 class LandingScreen extends StatelessWidget {
   const LandingScreen({super.key});
@@ -75,7 +76,7 @@ class LandingScreen extends StatelessWidget {
                 mainAxisSpacing: 14,
                 crossAxisSpacing: 8,
                 childAspectRatio: 0.72,
-                children: [for (final c in categories) CategoryTile(c, diameter: 66, onTap: () => _openBuyer(context, category: c.name))],
+                children: [for (final c in categories) CategoryTile(c, diameter: 66, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SubcategoryScreen(c))))],
               ),
               const SizedBox(height: 24),
               _promoCard('For Buyers', 'Find unique handmade products and connect directly with trusted artisans.', 'Explore Products', 'assets/for-buyers.webp', AppColors.green, () => _openBuyer(context)),

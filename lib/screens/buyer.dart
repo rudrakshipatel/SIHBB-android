@@ -72,7 +72,7 @@ class BuyerHome extends StatelessWidget {
         ]),
         const SizedBox(height: 18),
         const SectionHeader('Shop by Category'),
-        SizedBox(height: 108, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: categories.length, separatorBuilder: (_, _) => const SizedBox(width: 8), itemBuilder: (_, i) => CategoryTile(categories[i], onTap: () => onExplore(categories[i].name)))),
+        SizedBox(height: 108, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: categories.length, separatorBuilder: (_, _) => const SizedBox(width: 8), itemBuilder: (_, i) => CategoryTile(categories[i], onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SubcategoryScreen(categories[i])))))),
         const SizedBox(height: 22),
         SectionHeader('Featured Products', action: 'View all', onAction: () => onExplore(null)),
       ]))),
