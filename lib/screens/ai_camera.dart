@@ -27,8 +27,11 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   final _materials = TextEditingController();
   final _rawCost = TextEditingController();
   final _hours = TextEditingController();
+  final _rate = TextEditingController();
+  final _inventory = TextEditingController();
   final _price = TextEditingController();
   final _desc = TextEditingController();
+  final _tags = TextEditingController();
 
   Uint8List? _bytes;
   String? _path;
@@ -43,10 +46,16 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
     _materials.dispose();
     _rawCost.dispose();
     _hours.dispose();
+    _rate.dispose();
+    _inventory.dispose();
     _price.dispose();
     _desc.dispose();
+    _tags.dispose();
     super.dispose();
   }
+
+  /// Artisan-entered hourly rate, defaulting to the standard wage when blank.
+  double get _wage => double.tryParse(_rate.text.trim()) ?? _wagePerHour;
 
   /// Suggests one fixed price from the artisan's costs (editable afterwards).
   /// Falls back to the AI category ballpark until costs are entered.
@@ -56,7 +65,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
     final r = _result;
     double suggested;
     if (raw > 0 || hrs > 0) {
-      suggested = (raw + hrs * _wagePerHour) * (1 + _margin);
+      suggested = (raw + hrs * _wage) * (1 + _margin);
     } else if (r?.priceMin != null && r?.priceMax != null) {
       suggested = (r!.priceMin! + r.priceMax!) / 2;
     } else {
@@ -73,7 +82,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       return 'Ballpark from similar listings — add your costs for a tailored price.';
     }
     final hrsTxt = hrs % 1 == 0 ? hrs.toStringAsFixed(0) : hrs.toStringAsFixed(1);
-    return '₹${raw.round()} materials + $hrsTxt hrs × ₹${_wagePerHour.round()}/hr + ${(_margin * 100).round()}% margin';
+    return '₹${raw.round()} materials + $hrsTxt hrs × ₹${_wage.round()}/hr + ${(_margin * 100).round()}% margin';
   }
 
   Future<void> _pick(ImageSource source) async {
@@ -119,6 +128,8 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       _name.text = r.productName;
       _desc.text = r.description;
       _materials.text = r.materials.join(', ');
+      if (_rate.text.trim().isEmpty) _rate.text = _wagePerHour.round().toString();
+      _tags.text = r.tags.map((t) => '#${t.replaceAll(' ', '')}').join(' ');
     });
     _recalcPrice(); // seed the fixed price from the AI ballpark
   }
@@ -303,6 +314,14 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
                 child: _field('Hours to make', _hours,
                     number: true, onChanged: (_) => _recalcPrice())),
           ]),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+                child: _field('Rate per hour (₹)', _rate,
+                    number: true, onChanged: (_) => _recalcPrice())),
+            const SizedBox(width: 10),
+            Expanded(child: _field('Inventory left', _inventory, number: true)),
+          ]),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(12),
@@ -341,6 +360,10 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       _chips('B2C segments', r.b2cSegments),
       _chips('B2B segments', r.b2bSegments),
       _chips('Tags', r.tags),
+      Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: _field('Add your hashtags (e.g. #handmade #gujarat)', _tags),
+      ),
       if (r.culturalContext.isNotEmpty) ...[
         const SizedBox(height: 12),
         Text('Cultural context',
