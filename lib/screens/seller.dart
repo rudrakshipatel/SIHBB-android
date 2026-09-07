@@ -5,6 +5,7 @@ import '../widgets.dart';
 import 'buyer.dart';
 import 'product_detail.dart';
 import 'pages.dart';
+import 'ai_camera.dart';
 
 class SellerShell extends StatefulWidget {
   const SellerShell({super.key});
@@ -204,7 +205,7 @@ class _AddProduct extends StatelessWidget {
           ])),
         ]))),
         const SizedBox(height: 8),
-        SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('📷 Camera & AI cataloging — coming in the connected build'))), style: FilledButton.styleFrom(backgroundColor: AppColors.terracotta, padding: const EdgeInsets.symmetric(vertical: 14)), icon: const Icon(Icons.camera_alt_outlined), label: const Text('Start with a photo'))),
+        SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiCameraScreen())), style: FilledButton.styleFrom(backgroundColor: AppColors.terracotta, padding: const EdgeInsets.symmetric(vertical: 14)), icon: const Icon(Icons.camera_alt_outlined), label: const Text('Start with a photo'))),
       ])),
     ]);
   }
