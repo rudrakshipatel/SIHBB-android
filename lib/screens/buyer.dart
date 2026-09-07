@@ -52,7 +52,7 @@ class BuyerHome extends StatelessWidget {
   const BuyerHome({super.key, required this.onExplore});
   @override
   Widget build(BuildContext context) {
-    final featured = products.take(6).toList();
+    final featured = allProducts.take(6).toList();
     return CustomScrollView(slivers: [
       SliverAppBar(
         floating: true, backgroundColor: Colors.white, titleSpacing: 16,
@@ -93,7 +93,7 @@ class ProductsScreen extends StatelessWidget {
   const ProductsScreen({super.key, this.category, required this.onCategory});
   @override
   Widget build(BuildContext context) {
-    final items = category == null ? products : products.where((p) => p.category == category).toList();
+    final items = category == null ? allProducts : allProducts.where((p) => p.category == category).toList();
     return Column(children: [
       AppBar(title: Text(category ?? 'All Products', style: serif(size: 17, color: AppColors.green)), automaticallyImplyLeading: false),
       SizedBox(height: 44, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: [

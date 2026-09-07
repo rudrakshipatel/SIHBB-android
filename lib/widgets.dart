@@ -73,6 +73,12 @@ class ProductThumb extends StatelessWidget {
   const ProductThumb(this.p, {super.key, this.radius = 12});
   @override
   Widget build(BuildContext context) {
+    if (p.imageBytes != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: Image.memory(p.imageBytes!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+      );
+    }
     if (p.image != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(radius),

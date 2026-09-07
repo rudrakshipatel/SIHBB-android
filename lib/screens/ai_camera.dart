@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../theme.dart';
+import '../data.dart';
 import '../widgets.dart';
 import '../services/ai_camera.dart';
 
@@ -16,11 +17,17 @@ class AiCameraScreen extends StatefulWidget {
 }
 
 class _AiCameraScreenState extends State<AiCameraScreen> {
+  // Suggested-price formula (transparent + editable by the artisan).
+  static const double _wagePerHour = 120; // ₹ artisan labour per hour
+  static const double _margin = 0.35; // making overhead + fair profit
+
   final _picker = ImagePicker();
   final _hint = TextEditingController();
   final _name = TextEditingController();
-  final _priceMin = TextEditingController();
-  final _priceMax = TextEditingController();
+  final _materials = TextEditingController();
+  final _rawCost = TextEditingController();
+  final _hours = TextEditingController();
+  final _price = TextEditingController();
   final _desc = TextEditingController();
 
   Uint8List? _bytes;
@@ -33,10 +40,40 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   void dispose() {
     _hint.dispose();
     _name.dispose();
-    _priceMin.dispose();
-    _priceMax.dispose();
+    _materials.dispose();
+    _rawCost.dispose();
+    _hours.dispose();
+    _price.dispose();
     _desc.dispose();
     super.dispose();
+  }
+
+  /// Suggests one fixed price from the artisan's costs (editable afterwards).
+  /// Falls back to the AI category ballpark until costs are entered.
+  void _recalcPrice() {
+    final raw = double.tryParse(_rawCost.text.trim()) ?? 0;
+    final hrs = double.tryParse(_hours.text.trim()) ?? 0;
+    final r = _result;
+    double suggested;
+    if (raw > 0 || hrs > 0) {
+      suggested = (raw + hrs * _wagePerHour) * (1 + _margin);
+    } else if (r?.priceMin != null && r?.priceMax != null) {
+      suggested = (r!.priceMin! + r.priceMax!) / 2;
+    } else {
+      suggested = double.tryParse(_price.text.trim()) ?? 1000;
+    }
+    final rounded = (suggested / 50).round() * 50; // nearest ₹50
+    setState(() => _price.text = rounded.toString());
+  }
+
+  String get _priceBreakdown {
+    final raw = double.tryParse(_rawCost.text.trim()) ?? 0;
+    final hrs = double.tryParse(_hours.text.trim()) ?? 0;
+    if (raw <= 0 && hrs <= 0) {
+      return 'Ballpark from similar listings — add your costs for a tailored price.';
+    }
+    final hrsTxt = hrs % 1 == 0 ? hrs.toStringAsFixed(0) : hrs.toStringAsFixed(1);
+    return '₹${raw.round()} materials + $hrsTxt hrs × ₹${_wagePerHour.round()}/hr + ${(_margin * 100).round()}% margin';
   }
 
   Future<void> _pick(ImageSource source) async {
@@ -80,15 +117,40 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       _result = r;
       _busy = false;
       _name.text = r.productName;
-      _priceMin.text = (r.priceMin ?? '').toString();
-      _priceMax.text = (r.priceMax ?? '').toString();
       _desc.text = r.description;
+      _materials.text = r.materials.join(', ');
     });
+    _recalcPrice(); // seed the fixed price from the AI ballpark
   }
 
   void _publish() {
+    final r = _result;
+    if (r == null) return;
+    final price = int.tryParse(_price.text.trim()) ?? (r.priceMin ?? 1000);
+    final mats = _materials.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    userProducts.add(Product(
+      id: 'user-${DateTime.now().millisecondsSinceEpoch}',
+      name: _name.text.trim().isEmpty ? r.productName : _name.text.trim(),
+      nameLocal: r.nameLocal,
+      price: price,
+      category: r.category,
+      sub: r.craftType,
+      artisan: 'Rekha Devi',
+      location: 'Bhuj, Gujarat',
+      description: _desc.text.trim().isEmpty ? r.description : _desc.text.trim(),
+      cultural: r.culturalContext,
+      materials: mats.isEmpty ? r.materials : mats,
+      c1: AppColors.green,
+      c2: AppColors.terracotta,
+      imageBytes: _bytes,
+      segments: [...r.b2cSegments, ...r.b2bSegments],
+    ));
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('✅ Listing published to your catalogue (demo)')));
+        content: Text('✅ Published — see it in Buyer ▸ Featured Products')));
     Navigator.of(context).pop();
   }
 
@@ -221,13 +283,54 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _field('Product name', _name),
           const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: _field('Price min (₹)', _priceMin, number: true)),
-            const SizedBox(width: 10),
-            Expanded(child: _field('Price max (₹)', _priceMax, number: true)),
-          ]),
+          _field('Description', _desc, lines: 3),
+        ]),
+      ),
+      const SizedBox(height: 14),
+      Text('A few questions to price it fairly',
+          style: serif(size: 15, color: AppColors.green)),
+      const SizedBox(height: 8),
+      Panel(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _field('Which material(s) is it made from?', _materials),
           const SizedBox(height: 12),
-          _field('Description', _desc, lines: 4),
+          Row(children: [
+            Expanded(
+                child: _field('Raw material cost (₹)', _rawCost,
+                    number: true, onChanged: (_) => _recalcPrice())),
+            const SizedBox(width: 10),
+            Expanded(
+                child: _field('Hours to make', _hours,
+                    number: true, onChanged: (_) => _recalcPrice())),
+          ]),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.creamDeep,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.sell_outlined, size: 16, color: AppColors.green),
+                const SizedBox(width: 6),
+                Text('Suggested price', style: serif(size: 14, color: AppColors.green)),
+                const Spacer(),
+                TextButton(
+                    onPressed: _recalcPrice,
+                    style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                    child: const Text('Recalculate', style: TextStyle(fontSize: 11))),
+              ]),
+              const SizedBox(height: 8),
+              _field('Price (₹) — edit if needed', _price, number: true),
+              const SizedBox(height: 6),
+              Text(_priceBreakdown,
+                  style: const TextStyle(fontSize: 11, color: AppColors.muted, height: 1.3)),
+            ]),
+          ),
         ]),
       ),
       const SizedBox(height: 12),
@@ -302,11 +405,12 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   }
 
   Widget _field(String label, TextEditingController c,
-          {int lines = 1, bool number = false}) =>
+          {int lines = 1, bool number = false, ValueChanged<String>? onChanged}) =>
       TextField(
         controller: c,
         maxLines: lines,
         keyboardType: number ? TextInputType.number : TextInputType.text,
+        onChanged: onChanged,
         decoration: InputDecoration(
           isDense: true,
           border: const OutlineInputBorder(),

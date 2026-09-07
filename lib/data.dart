@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 class Category {
@@ -23,6 +25,7 @@ class Product {
   final Color c2;
   final bool b2bOnly;
   final String? image; // asset path; when set, shown instead of the gradient
+  final Uint8List? imageBytes; // in-memory photo (artisan-published listings)
   final int? priceMax; // when set, the product shows a price range
   final String? productInfo; // longer "Product Information" block
   final List<String> segments; // recommended market segments
@@ -42,6 +45,7 @@ class Product {
     required this.c2,
     this.b2bOnly = false,
     this.image,
+    this.imageBytes,
     this.priceMax,
     this.productInfo,
     this.segments = const [],
@@ -49,6 +53,14 @@ class Product {
 
   String get priceLabel => priceMax == null ? rupee(price) : '${rupee(price)}–${rupee(priceMax!)}';
 }
+
+/// Listings the artisan publishes at runtime (newest last). In-memory only —
+/// resets when the app restarts, which is fine for the demo.
+final List<Product> userProducts = <Product>[];
+
+/// Everything shown to buyers: freshly published listings first, then the seed
+/// catalogue.
+List<Product> get allProducts => [...userProducts.reversed, ...products];
 
 class Artisan {
   final String name;
