@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
 import 'package:http/http.dart' as http;
 
 /// AI product-cataloging from a photo. Provider-abstracted, mirroring the web
@@ -21,8 +22,10 @@ const String _model =
 /// True when a live Anthropic key was compiled in via --dart-define.
 bool get aiIsLive => _apiKey.isNotEmpty;
 
-/// The model id in use (for display), or 'demo' in offline mock mode.
-String get aiModelLabel => aiIsLive ? _model : 'demo (offline mock)';
+/// The engine in use (for display).
+String get aiModelLabel => aiIsLive
+    ? 'Claude vision · $_model'
+    : 'On-device AI · Google ML Kit (offline, no key)';
 
 class CatalogResult {
   final String productName;
@@ -101,18 +104,110 @@ class CatalogResult {
 Future<CatalogResult> generateCatalogFromPhoto(
   Uint8List bytes, {
   String mediaType = 'image/jpeg',
+  String? imagePath,
   String? craftHint,
   String? location,
 }) async {
-  if (!aiIsLive) {
-    return _mock(craftHint: craftHint, location: location);
+  // 1) Live Claude vision when an API key was compiled in.
+  if (aiIsLive) {
+    try {
+      return await _claudeVision(bytes, mediaType, craftHint, location);
+    } catch (_) {
+      // fall through to on-device / mock so a demo never dead-ends
+    }
   }
+  // 2) Free, on-device image classification (no key) — genuinely analyses the
+  //    photo and picks a category. Skipped only if we have no file path.
+  if (imagePath != null) {
+    try {
+      final r = await _onDeviceLabel(imagePath, craftHint: craftHint, location: location);
+      if (r != null) return r;
+    } catch (_) {
+      // fall through to the deterministic mock
+    }
+  }
+  // 3) Last-resort deterministic mock.
+  return _mock(craftHint: craftHint, location: location, bytes: bytes);
+}
+
+// ---------------- On-device image labeling (free, offline) ----------------
+
+/// Maps ML Kit label text -> a craft-category profile key. First keyword hit
+/// per label contributes that label's confidence to the category's score.
+const Map<String, List<String>> _labelMap = {
+  'textile': [
+    'textile', 'fabric', 'clothing', 'scarf', 'shawl', 'stole', 'dress',
+    'embroidery', 'carpet', 'rug', 'wool', 'silk', 'sari', 'saree', 'linen',
+    'denim', 'knitting', 'curtain', 'cushion', 'pillow', 'pattern', 'sleeve',
+  ],
+  'pottery': [
+    'pottery', 'vase', 'ceramic', 'bowl', 'porcelain', 'clay', 'earthenware',
+    'mug', 'jar', 'plate', 'tableware', 'flowerpot', 'pot',
+  ],
+  'wood': [
+    'wood', 'table', 'furniture', 'chair', 'desk', 'cabinet', 'stool',
+    'bench', 'plank', 'hardwood', 'drawer', 'shelf',
+  ],
+  'jewellery': [
+    'jewellery', 'jewelry', 'necklace', 'bracelet', 'earrings', 'earring',
+    'ring', 'bead', 'pendant', 'bangle', 'gemstone', 'diamond', 'locket',
+    'fashion accessory',
+  ],
+  'brass': [
+    'brass', 'metal', 'bronze', 'copper', 'sculpture', 'figurine', 'statue',
+    'bell', 'lamp', 'candle',
+  ],
+  'decorative': [
+    'art', 'painting', 'mirror', 'wall', 'ornament', 'craft', 'decoration',
+    'picture frame', 'handicraft', 'still life', 'visual arts',
+  ],
+};
+
+Future<CatalogResult?> _onDeviceLabel(
+  String imagePath, {
+  String? craftHint,
+  String? location,
+}) async {
+  final labeler =
+      ImageLabeler(options: ImageLabelerOptions(confidenceThreshold: 0.35));
+  List<ImageLabel> labels;
   try {
-    return await _claudeVision(bytes, mediaType, craftHint, location);
-  } catch (_) {
-    // Never dead-end a live demo — fall back to the deterministic mock.
-    return _mock(craftHint: craftHint, location: location);
+    labels = await labeler.processImage(InputImage.fromFilePath(imagePath));
+  } finally {
+    await labeler.close();
   }
+  if (labels.isEmpty) return null;
+
+  // Score each category by summing the confidence of matching labels.
+  final scores = <String, double>{};
+  for (final l in labels) {
+    final text = l.label.toLowerCase();
+    for (final entry in _labelMap.entries) {
+      if (entry.value.any((kw) => text.contains(kw))) {
+        scores[entry.key] = (scores[entry.key] ?? 0) + l.confidence;
+        break;
+      }
+    }
+  }
+  String key;
+  double conf;
+  if (scores.isEmpty) {
+    // Nothing mapped to a craft category — treat as miscellaneous decor.
+    key = 'decorative';
+    conf = labels.first.confidence;
+  } else {
+    final best = scores.entries.reduce((a, b) => a.value >= b.value ? a : b);
+    key = best.key;
+    conf = best.value.clamp(0.0, 1.0);
+  }
+  final top = labels.first.label;
+  return _build(
+    _profiles[key]!,
+    confidence: conf,
+    provider: 'on-device (ML Kit)',
+    location: location,
+    detected: top,
+  );
 }
 
 // ---------------- Claude vision provider ----------------
@@ -269,29 +364,99 @@ const _profiles = <String, _Profile>{
         'prized in luxury interiors.',
     'काष्ठ शिल्प',
   ),
+  'jewellery': _Profile(
+    'Jewellery & Accessories',
+    'Handcrafted Jewellery',
+    ['Oxidised metal', 'Beads / stones'],
+    ['Silver', 'Gold-tone'],
+    800,
+    9000,
+    ['Ethnic Wear', 'Festive & Wedding'],
+    ['Boutique Retail', 'Export Houses'],
+    ['Fashion Retail', 'Festive & Wedding', 'Export'],
+    'Indian handcrafted jewellery blends regional metalwork with beadwork and '
+        'stone-setting traditions.',
+    'हस्तनिर्मित आभूषण',
+  ),
+  'decorative': _Profile(
+    'Decorative Arts & Handicrafts',
+    'Decorative Handicraft',
+    ['Mixed media', 'Natural pigments'],
+    ['Earthy tones'],
+    900,
+    7000,
+    ['Home Decor', 'Wall Art'],
+    ['Interior Designers', 'Hospitality & Interiors'],
+    ['Home Decor Retail', 'Interior Designers', 'Corporate Gifting'],
+    'Decorative handicrafts such as Lippan mirror-work and wall art showcase '
+        'regional folk-art traditions.',
+    'सजावटी शिल्प',
+  ),
 };
 
-_Profile _pickProfile(String? hint) {
+_Profile _pickProfile(String? hint, Uint8List? bytes) {
   final h = (hint ?? '').toLowerCase();
+  // 1) Explicit keyword routing from the optional craft hint.
   for (final key in _profiles.keys) {
     if (h.contains(key)) return _profiles[key]!;
   }
-  if (h.contains('saree') || h.contains('cloth') || h.contains('embroid')) {
+  if (h.contains('saree') ||
+      h.contains('cloth') ||
+      h.contains('fabric') ||
+      h.contains('embroid') ||
+      h.contains('chikankari') ||
+      h.contains('zari') ||
+      h.contains('stole') ||
+      h.contains('shawl')) {
     return _profiles['textile']!;
   }
-  if (h.contains('bowl') || h.contains('vase') || h.contains('clay')) {
+  if (h.contains('bowl') || h.contains('vase') || h.contains('clay') || h.contains('terracot')) {
     return _profiles['pottery']!;
   }
-  if (h.contains('metal') || h.contains('bird')) return _profiles['brass']!;
-  if (h.contains('table') || h.contains('furniture')) {
+  if (h.contains('metal') || h.contains('bird') || h.contains('brass')) {
+    return _profiles['brass']!;
+  }
+  if (h.contains('table') || h.contains('furniture') || h.contains('wood')) {
     return _profiles['wood']!;
+  }
+  if (h.contains('necklace') || h.contains('earring') || h.contains('jewel') || h.contains('bangle')) {
+    return _profiles['jewellery']!;
+  }
+  if (h.contains('lippan') || h.contains('mirror') || h.contains('wall') || h.contains('decor')) {
+    return _profiles['decorative']!;
+  }
+  // 2) No hint: offline mock can't truly see the image, so vary the category
+  //    deterministically by photo content so different photos differ (demo
+  //    only — real analysis happens on the live Claude vision path).
+  if (bytes != null && bytes.length > 8) {
+    final keys = _profiles.keys.toList();
+    final sig = bytes.length +
+        bytes.first +
+        bytes[bytes.length ~/ 3] +
+        bytes[bytes.length ~/ 2] +
+        bytes[bytes.length - 2];
+    return _profiles[keys[sig % keys.length]]!;
   }
   return _profiles['pottery']!;
 }
 
-CatalogResult _mock({String? craftHint, String? location}) {
-  final p = _pickProfile(craftHint);
+CatalogResult _mock({String? craftHint, String? location, Uint8List? bytes}) =>
+    _build(_pickProfile(craftHint, bytes),
+        confidence: 0.62, provider: 'mock-v1', location: location);
+
+/// Builds a listing from a craft profile. Shared by the on-device labeler and
+/// the deterministic mock. [detected] is the raw label the classifier saw.
+CatalogResult _build(
+  _Profile p, {
+  required double confidence,
+  required String provider,
+  String? location,
+  String? detected,
+}) {
   final where = (location == null || location.isEmpty) ? '' : ' from $location';
+  final seen = (detected == null || detected.isEmpty)
+      ? ''
+      : ' The photo was recognised as "$detected".';
   return CatalogResult(
     productName: 'Handcrafted ${p.craftType}',
     category: p.category,
@@ -300,7 +465,7 @@ CatalogResult _mock({String? craftHint, String? location}) {
     colors: p.colors,
     description:
         'A handmade ${p.craftType.toLowerCase()} piece crafted by a skilled '
-        'artisan$where. ${p.context}',
+        'artisan$where.$seen ${p.context}',
     culturalContext: p.context,
     nameLocal: p.nameLocal,
     priceMin: p.priceMin,
@@ -313,8 +478,8 @@ CatalogResult _mock({String? craftHint, String? location}) {
     b2cSegments: p.b2c,
     b2bSegments: p.b2b,
     recommendedMarkets: p.markets,
-    confidence: 0.62,
+    confidence: confidence,
     fieldsRequiringConfirmation: const ['price', 'dimensions', 'materials'],
-    provider: 'mock-v1',
+    provider: provider,
   );
 }

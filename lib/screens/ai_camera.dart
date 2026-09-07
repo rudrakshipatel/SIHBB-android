@@ -24,6 +24,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   final _desc = TextEditingController();
 
   Uint8List? _bytes;
+  String? _path;
   String _mediaType = 'image/jpeg';
   CatalogResult? _result;
   bool _busy = false;
@@ -52,6 +53,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
               : 'image/jpeg';
       setState(() {
         _bytes = bytes;
+        _path = x.path;
         _mediaType = mt;
         _result = null;
       });
@@ -69,6 +71,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
     final r = await generateCatalogFromPhoto(
       bytes,
       mediaType: _mediaType,
+      imagePath: _path,
       craftHint: _hint.text.trim().isEmpty ? null : _hint.text.trim(),
       location: 'Rekha Devi · Bhuj, Gujarat',
     );
@@ -208,6 +211,10 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       const SizedBox(height: 4),
       Text('${r.craftType} · ${r.category}',
           style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+      const SizedBox(height: 2),
+      Text('Analysed by ${r.provider}',
+          style: const TextStyle(
+              fontSize: 11, color: AppColors.greenSoft, fontWeight: FontWeight.w600)),
       const SizedBox(height: 12),
       if (r.fieldsRequiringConfirmation.isNotEmpty) _confirmBanner(r),
       Panel(

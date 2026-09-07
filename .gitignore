@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local Anthropic API key for the AI camera (never commit)
+hastakala-ai.key
+.env

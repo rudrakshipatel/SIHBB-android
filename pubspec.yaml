@@ -38,6 +38,9 @@ dependencies:
   # AI camera cataloging: capture/pick a photo, then send it to Claude vision.
   image_picker: ^1.1.2
   http: ^1.2.2
+  # Free, on-device image classification (no API key, works offline) — used to
+  # actually analyse the photo and pick a craft category when no live key.
+  google_mlkit_image_labeling: ^0.15.0
 
 dev_dependencies:
   flutter_test:
