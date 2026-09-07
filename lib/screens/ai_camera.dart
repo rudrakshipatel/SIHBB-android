@@ -18,8 +18,8 @@ class AiCameraScreen extends StatefulWidget {
 
 class _AiCameraScreenState extends State<AiCameraScreen> {
   // Suggested-price formula (transparent + editable by the artisan).
-  static const double _wagePerHour = 120; // ₹ artisan labour per hour
-  static const double _margin = 0.35; // making overhead + fair profit
+  static const double _wagePerHour = 35; // ₹ artisan labour per hour
+  static const double _margin = 0.25; // making overhead + fair profit
 
   final _picker = ImagePicker();
   final _hint = TextEditingController();
@@ -73,16 +73,6 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
     }
     final rounded = (suggested / 50).round() * 50; // nearest ₹50
     setState(() => _price.text = rounded.toString());
-  }
-
-  String get _priceBreakdown {
-    final raw = double.tryParse(_rawCost.text.trim()) ?? 0;
-    final hrs = double.tryParse(_hours.text.trim()) ?? 0;
-    if (raw <= 0 && hrs <= 0) {
-      return 'Ballpark from similar listings — add your costs for a tailored price.';
-    }
-    final hrsTxt = hrs % 1 == 0 ? hrs.toStringAsFixed(0) : hrs.toStringAsFixed(1);
-    return '₹${raw.round()} materials + $hrsTxt hrs × ₹${_wage.round()}/hr + ${(_margin * 100).round()}% margin';
   }
 
   Future<void> _pick(ImageSource source) async {
@@ -345,9 +335,6 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
               ]),
               const SizedBox(height: 8),
               _field('Price (₹) — edit if needed', _price, number: true),
-              const SizedBox(height: 6),
-              Text(_priceBreakdown,
-                  style: const TextStyle(fontSize: 11, color: AppColors.muted, height: 1.3)),
             ]),
           ),
         ]),
