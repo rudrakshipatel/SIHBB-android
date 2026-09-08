@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'screens/landing.dart';
+import 'services/store.dart';
 
-void main() => runApp(const HastakalaApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await initStore();
+    await loadUserProducts();
+  } catch (_) {
+    // First run or storage unavailable — start with an empty catalogue.
+  }
+  runApp(const HastakalaApp());
+}
 
 class HastakalaApp extends StatelessWidget {
   const HastakalaApp({super.key});

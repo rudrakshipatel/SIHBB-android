@@ -8,6 +8,7 @@ import '../theme.dart';
 import '../data.dart';
 import '../widgets.dart';
 import '../services/ai_camera.dart';
+import '../services/store.dart';
 
 /// AI camera cataloging: capture or pick a product photo, send it to Claude
 /// vision (or the offline mock), and get an auto-filled, editable listing.
@@ -168,7 +169,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
-    userProducts.add(Product(
+    final product = Product(
       id: 'user-${DateTime.now().millisecondsSinceEpoch}',
       name: _name.text.trim().isEmpty ? r.productName : _name.text.trim(),
       nameLocal: r.nameLocal,
@@ -184,7 +185,9 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       c2: AppColors.terracotta,
       imageBytes: _bytes,
       segments: [...r.b2cSegments, ...r.b2bSegments],
-    ));
+    );
+    userProducts.add(product);
+    saveUserProduct(product); // persist offline (SQLite)
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('✅ Published — see it in Buyer ▸ Featured Products')));
     Navigator.of(context).pop();
