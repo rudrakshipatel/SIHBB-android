@@ -19,13 +19,30 @@ const String _apiKey = String.fromEnvironment('ANTHROPIC_API_KEY');
 const String _model =
     String.fromEnvironment('AI_MODEL', defaultValue: 'claude-opus-5');
 
-/// True when a live Anthropic key was compiled in via --dart-define.
-bool get aiIsLive => _apiKey.isNotEmpty;
+/// Gemini (preferred vision provider when its key is compiled in).
+const String _geminiKey = String.fromEnvironment('GEMINI_API_KEY');
+const String _geminiModel =
+    String.fromEnvironment('GEMINI_MODEL', defaultValue: 'gemini-2.5-flash');
+
+/// True when any live cloud vision key was compiled in via --dart-define.
+bool get aiIsLive => _geminiKey.isNotEmpty || _apiKey.isNotEmpty;
 
 /// The engine in use (for display).
-String get aiModelLabel => aiIsLive
-    ? 'Claude vision · $_model'
-    : 'On-device AI · Google ML Kit (offline, no key)';
+String get aiModelLabel => _geminiKey.isNotEmpty
+    ? 'Gemini · $_geminiModel'
+    : _apiKey.isNotEmpty
+        ? 'Claude vision · $_model'
+        : 'On-device AI · Google ML Kit (offline, no key)';
+
+/// Craft categories the model must classify into (also the Gemini enum).
+const List<String> kCraftCategories = [
+  'Textiles, Garments & Embroidery',
+  'Ceramics & Pottery',
+  'Woodwork & Furniture',
+  'Jewellery & Accessories',
+  'Decorative Arts & Handicrafts',
+  'Miscellaneous',
+];
 
 class CatalogResult {
   final String productName;
@@ -108,8 +125,16 @@ Future<CatalogResult> generateCatalogFromPhoto(
   String? craftHint,
   String? location,
 }) async {
-  // 1) Live Claude vision when an API key was compiled in.
-  if (aiIsLive) {
+  // 1) Gemini vision (preferred) when its key was compiled in.
+  if (_geminiKey.isNotEmpty) {
+    try {
+      return await _geminiVision(bytes, mediaType, craftHint, location);
+    } catch (_) {
+      // fall through
+    }
+  }
+  // 2) Claude vision when an Anthropic key was compiled in.
+  if (_apiKey.isNotEmpty) {
     try {
       return await _claudeVision(bytes, mediaType, craftHint, location);
     } catch (_) {
@@ -208,6 +233,99 @@ Future<CatalogResult?> _onDeviceLabel(
     location: location,
     detected: top,
   );
+}
+
+// ---------------- Gemini vision provider ----------------
+
+/// Strict JSON schema Gemini must return (OpenAPI subset).
+const Map<String, dynamic> _geminiSchema = {
+  'type': 'OBJECT',
+  'properties': {
+    'product_name': {'type': 'STRING'},
+    'category': {'type': 'STRING', 'enum': kCraftCategories},
+    'craft_type': {'type': 'STRING'},
+    'materials': {'type': 'ARRAY', 'items': {'type': 'STRING'}},
+    'colors': {'type': 'ARRAY', 'items': {'type': 'STRING'}},
+    'description': {'type': 'STRING'},
+    'cultural_context': {'type': 'STRING'},
+    'name_local': {'type': 'STRING'},
+    'price_min': {'type': 'INTEGER'},
+    'price_max': {'type': 'INTEGER'},
+    'tags': {'type': 'ARRAY', 'items': {'type': 'STRING'}},
+    'target_b2c_segments': {'type': 'ARRAY', 'items': {'type': 'STRING'}},
+    'target_b2b_segments': {'type': 'ARRAY', 'items': {'type': 'STRING'}},
+    'recommended_markets': {'type': 'ARRAY', 'items': {'type': 'STRING'}},
+    'confidence': {'type': 'NUMBER'},
+    'fields_requiring_confirmation': {'type': 'ARRAY', 'items': {'type': 'STRING'}},
+  },
+  'required': ['product_name', 'category', 'craft_type', 'description', 'confidence'],
+};
+
+Future<CatalogResult> _geminiVision(
+  Uint8List bytes,
+  String mediaType,
+  String? craftHint,
+  String? location,
+) async {
+  final b64 = base64Encode(bytes);
+  const sys =
+      'You are a cataloging assistant for Indian artisan handicrafts. Look at '
+      'the product photo and return a listing that matches the provided JSON '
+      'schema. Classify category from the enum. Never invent facts you cannot '
+      'see; put uncertain fields in fields_requiring_confirmation. Prices are '
+      'fair INR estimates.';
+  final user =
+      'Craft hint (may be empty): ${craftHint ?? 'unknown'}\n'
+      'Artisan location: ${location ?? 'unknown'}\n'
+      'Draft the marketplace listing from this photo.';
+
+  final res = await http
+      .post(
+        Uri.parse(
+            'https://generativelanguage.googleapis.com/v1beta/models/$_geminiModel:generateContent?key=$_geminiKey'),
+        headers: {'content-type': 'application/json'},
+        body: jsonEncode({
+          'system_instruction': {
+            'parts': [
+              {'text': sys}
+            ]
+          },
+          'contents': [
+            {
+              'role': 'user',
+              'parts': [
+                {
+                  'inline_data': {'mime_type': mediaType, 'data': b64}
+                },
+                {'text': user},
+              ],
+            }
+          ],
+          'generationConfig': {
+            'responseMimeType': 'application/json',
+            'responseSchema': _geminiSchema,
+            'temperature': 0.4,
+          },
+        }),
+      )
+      .timeout(const Duration(seconds: 60));
+
+  if (res.statusCode != 200) {
+    throw Exception('Gemini API ${res.statusCode}: ${res.body}');
+  }
+  final data = jsonDecode(res.body) as Map<String, dynamic>;
+  final parts = (((data['candidates'] as List?)?.first
+          as Map?)?['content'] as Map?)?['parts'] as List? ??
+      const [];
+  final text =
+      parts.where((p) => p is Map && p['text'] != null).map((p) => p['text'].toString()).join();
+  final start = text.indexOf('{');
+  final end = text.lastIndexOf('}');
+  if (start < 0 || end <= start) {
+    throw const FormatException('No JSON object in Gemini response');
+  }
+  final raw = jsonDecode(text.substring(start, end + 1)) as Map<String, dynamic>;
+  return CatalogResult.fromJson(raw, provider: 'gemini');
 }
 
 // ---------------- Claude vision provider ----------------
