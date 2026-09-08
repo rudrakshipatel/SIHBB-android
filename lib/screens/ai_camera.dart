@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 
 import '../theme.dart';
@@ -18,8 +19,10 @@ class AiCameraScreen extends StatefulWidget {
 
 class _AiCameraScreenState extends State<AiCameraScreen> {
   // Suggested-price formula (transparent + editable by the artisan).
-  static const double _wagePerHour = 35; // ₹ artisan labour per hour
-  static const double _margin = 0.25; // making overhead + fair profit
+  // P_floor = round50( (C_raw + t*w + O) * (1 + m) ),  O = k * C_raw
+  static const double _wagePerHour = 35; // w: ₹ artisan labour per hour
+  static const double _margin = 0.25; // m: fair profit margin
+  static const double _overheadRate = 0.10; // k: packaging/power/wastage on C_raw
 
   final _picker = ImagePicker();
   final _hint = TextEditingController();
@@ -33,9 +36,13 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   final _desc = TextEditingController();
   final _tags = TextEditingController();
 
+  // Photo-quality: variance-of-Laplacian (0-255 gray). Higher = sharper.
+  static const double _blurWarn = 100; // below this we warn the artisan
+
   Uint8List? _bytes;
   String? _path;
   String _mediaType = 'image/jpeg';
+  double? _sharpness; // variance of Laplacian for the current photo
   CatalogResult? _result;
   bool _busy = false;
 
@@ -57,6 +64,32 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   /// Artisan-entered hourly rate, defaulting to the standard wage when blank.
   double get _wage => double.tryParse(_rate.text.trim()) ?? _wagePerHour;
 
+  /// On-device blur score = variance of the Laplacian over a downscaled
+  /// grayscale copy. Runs offline; higher means sharper.
+  double _computeSharpness(Uint8List bytes) {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return _blurWarn; // unknown -> don't warn
+    final g = img.grayscale(img.copyResize(decoded, width: 320));
+    final w = g.width, h = g.height;
+    double lum(int x, int y) => g.getPixel(x, y).r.toDouble();
+    double sum = 0, sumSq = 0;
+    int n = 0;
+    for (int y = 1; y < h - 1; y++) {
+      for (int x = 1; x < w - 1; x++) {
+        final lap =
+            4 * lum(x, y) - lum(x - 1, y) - lum(x + 1, y) - lum(x, y - 1) - lum(x, y + 1);
+        sum += lap;
+        sumSq += lap * lap;
+        n++;
+      }
+    }
+    if (n == 0) return _blurWarn;
+    final mean = sum / n;
+    return sumSq / n - mean * mean; // variance of Laplacian
+  }
+
+  bool get _isBlurry => _sharpness != null && _sharpness! < _blurWarn;
+
   /// Suggests one fixed price from the artisan's costs (editable afterwards).
   /// Falls back to the AI category ballpark until costs are entered.
   void _recalcPrice() {
@@ -65,7 +98,8 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
     final r = _result;
     double suggested;
     if (raw > 0 || hrs > 0) {
-      suggested = (raw + hrs * _wage) * (1 + _margin);
+      final overhead = raw * _overheadRate; // O = k * C_raw
+      suggested = (raw + hrs * _wage + overhead) * (1 + _margin);
     } else if (r?.priceMin != null && r?.priceMax != null) {
       suggested = (r!.priceMin! + r.priceMax!) / 2;
     } else {
@@ -92,6 +126,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
         _path = x.path;
         _mediaType = mt;
         _result = null;
+        _sharpness = _computeSharpness(bytes);
       });
     } catch (e) {
       if (!mounted) return;
@@ -259,7 +294,27 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
                 Text('Snap or choose a photo of your craft',
                     style: TextStyle(color: AppColors.muted, fontSize: 12)),
               ]))
-            : Image.memory(_bytes!, fit: BoxFit.cover),
+            : Stack(fit: StackFit.expand, children: [
+                Image.memory(_bytes!, fit: BoxFit.cover),
+                if (_isBlurry)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      color: const Color(0xE6B55A34),
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                      child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Icon(Icons.blur_on, size: 14, color: Colors.white),
+                        SizedBox(width: 6),
+                        Flexible(
+                          child: Text('This photo looks blurry — a sharper one sells better',
+                              style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                        ),
+                      ]),
+                    ),
+                  ),
+              ]),
       ),
     );
   }
