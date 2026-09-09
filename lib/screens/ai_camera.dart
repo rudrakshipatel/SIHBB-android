@@ -175,9 +175,28 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       ),
     );
     try {
-      final result =
-          await segmenter.processImage(InputImage.fromFilePath(primary.path));
-      final fg = result.foregroundBitmap;
+      // The ML Kit segmentation model downloads on first use; the initial call
+      // throws "…module to be downloaded. Please wait." — retry a few times.
+      SubjectSegmentationResult? result;
+      for (int attempt = 0; attempt < 5; attempt++) {
+        try {
+          result =
+              await segmenter.processImage(InputImage.fromFilePath(primary.path));
+          break;
+        } catch (e) {
+          final m = e.toString().toLowerCase();
+          final downloading = m.contains('download') ||
+              m.contains('please wait') ||
+              m.contains('module');
+          if (downloading && attempt < 4) {
+            _toast('Preparing background remover (one-time download)…');
+            await Future.delayed(const Duration(seconds: 5));
+            continue;
+          }
+          rethrow;
+        }
+      }
+      final fg = result?.foregroundBitmap;
       final fgImg = fg == null ? null : img.decodeImage(fg);
       if (fgImg == null) throw Exception('no subject detected');
       final canvas = img.Image(width: fgImg.width, height: fgImg.height);
