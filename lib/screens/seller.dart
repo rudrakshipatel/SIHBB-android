@@ -14,10 +14,10 @@ class SellerShell extends StatefulWidget {
 }
 
 class _SellerShellState extends State<SellerShell> {
-  int _tab = 0;
+  int _tab = 1; // default to the Add tab
   @override
   Widget build(BuildContext context) {
-    final pages = [const SellerDashboard(), const _MyProducts(), const _AddProduct(), const _Inquiries(), const _SellerProfile()];
+    final pages = [const _MyProducts(), const _AddProduct(), const _SellerProfile()];
     return Scaffold(
       body: SafeArea(bottom: false, child: pages[_tab]),
       bottomNavigationBar: NavigationBar(
@@ -26,10 +26,8 @@ class _SellerShellState extends State<SellerShell> {
         backgroundColor: Colors.white,
         indicatorColor: AppColors.creamDeep,
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Dashboard'),
           NavigationDestination(icon: Icon(Icons.inventory_2_outlined), selectedIcon: Icon(Icons.inventory_2), label: 'Products'),
           NavigationDestination(icon: Icon(Icons.add_circle_outline), selectedIcon: Icon(Icons.add_circle), label: 'Add'),
-          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Inquiries'),
           NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
@@ -155,9 +153,9 @@ class _Inquiries extends StatelessWidget {
   const _Inquiries();
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
-      AppBar(title: Text('Inquiries', style: serif(size: 17, color: AppColors.green)), automaticallyImplyLeading: false),
-      Expanded(child: ListView(padding: const EdgeInsets.all(16), children: [
+    return Scaffold(
+      appBar: AppBar(title: Text('Inquiries', style: serif(size: 17, color: AppColors.green))),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
         for (final i in inquiries) Card(margin: const EdgeInsets.only(bottom: 10), child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: i.type == 'B2B' ? const Color(0x1A22402E) : AppColors.creamDeep, borderRadius: BorderRadius.circular(6)), child: Text(i.type, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: i.type == 'B2B' ? AppColors.green : AppColors.terracotta))),
@@ -174,8 +172,8 @@ class _Inquiries extends StatelessWidget {
             Expanded(child: FilledButton(onPressed: () => _snack(context, 'Quote sent'), style: FilledButton.styleFrom(backgroundColor: AppColors.terracotta), child: const Text('Send Quote'))),
           ]),
         ]))),
-      ])),
-    ]);
+      ]),
+    );
   }
 
   void _snack(BuildContext c, String m) => ScaffoldMessenger.of(c).showSnackBar(SnackBar(content: Text(m)));
@@ -232,6 +230,7 @@ class _SellerProfile extends StatelessWidget {
           ])),
         ])),
         const SizedBox(height: 12),
+        _tile(context, Icons.chat_bubble_outline, 'Inquiries', const _Inquiries()),
         _tile(context, Icons.qr_code_2, 'My QR code', const QrScreen()),
         _tile(context, Icons.insights_outlined, 'Insights', const InsightsScreen()),
         _tile(context, Icons.event_outlined, 'Exhibitions', const ExhibitionsScreen()),
