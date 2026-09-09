@@ -41,6 +41,8 @@ dependencies:
   # Free, on-device image classification (no API key, works offline) — used to
   # actually analyse the photo and pick a craft category when no live key.
   google_mlkit_image_labeling: ^0.15.0
+  # On-device background cutout (no key, no backend) for product photos.
+  google_mlkit_subject_segmentation: ^0.1.0
   # On-device photo-quality (blur) check — pure Dart, no native code.
   image: ^4.8.0
   # Offline persistence for published listings (SQLite, no codegen).

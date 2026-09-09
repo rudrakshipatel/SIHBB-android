@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:google_mlkit_subject_segmentation/google_mlkit_subject_segmentation.dart';
 
 import '../theme.dart';
 import '../data.dart';
@@ -44,6 +46,8 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   String? _path;
   String _mediaType = 'image/jpeg';
   double? _sharpness; // variance of Laplacian for the current photo
+  bool _cutout = false; // background already removed for the current photo
+  bool _cutoutBusy = false;
   CatalogResult? _result;
   bool _busy = false;
 
@@ -91,6 +95,53 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
 
   bool get _isBlurry => _sharpness != null && _sharpness! < _blurWarn;
 
+  /// On-device background removal (ML Kit Subject Segmentation — no key, no
+  /// network after the model downloads). Composites the subject onto white and
+  /// makes that the product photo.
+  Future<void> _removeBackground() async {
+    final path = _path;
+    if (path == null || _cutoutBusy) return;
+    setState(() => _cutoutBusy = true);
+    final segmenter = SubjectSegmenter(
+      options: SubjectSegmenterOptions(
+        enableForegroundBitmap: true,
+        enableForegroundConfidenceMask: false,
+        enableMultipleSubjects: SubjectResultOptions(
+            enableConfidenceMask: false, enableSubjectBitmap: false),
+      ),
+    );
+    try {
+      final result =
+          await segmenter.processImage(InputImage.fromFilePath(path));
+      final fg = result.foregroundBitmap;
+      final fgImg = fg == null ? null : img.decodeImage(fg);
+      if (fgImg == null) throw Exception('no subject detected');
+      // Flatten the transparent cut-out onto a white studio background.
+      final canvas = img.Image(width: fgImg.width, height: fgImg.height);
+      img.fill(canvas, color: img.ColorRgb8(255, 255, 255));
+      img.compositeImage(canvas, fgImg);
+      final out = Uint8List.fromList(img.encodeJpg(canvas, quality: 90));
+      final tmp = File(
+          '${Directory.systemTemp.path}/cutout_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await tmp.writeAsBytes(out);
+      if (!mounted) return;
+      setState(() {
+        _bytes = out;
+        _path = tmp.path;
+        _mediaType = 'image/jpeg';
+        _cutout = true;
+        _sharpness = _computeSharpness(out);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Couldn't remove background: $e")));
+    } finally {
+      await segmenter.close();
+      if (mounted) setState(() => _cutoutBusy = false);
+    }
+  }
+
   /// Suggests one fixed price from the artisan's costs (editable afterwards).
   /// Falls back to the AI category ballpark until costs are entered.
   void _recalcPrice() {
@@ -127,6 +178,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
         _path = x.path;
         _mediaType = mt;
         _result = null;
+        _cutout = false;
         _sharpness = _computeSharpness(bytes);
       });
     } catch (e) {
@@ -217,6 +269,28 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
                   icon: const Icon(Icons.photo_library_outlined),
                   label: const Text('Gallery'))),
         ]),
+        if (_bytes != null) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed:
+                  (_busy || _cutoutBusy || _cutout) ? null : _removeBackground,
+              icon: _cutoutBusy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(_cutout ? Icons.check : Icons.auto_fix_high,
+                      size: 18),
+              label: Text(_cutoutBusy
+                  ? 'Removing background…'
+                  : _cutout
+                      ? 'Background removed'
+                      : 'Remove background (on-device)'),
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         TextField(
           controller: _hint,
