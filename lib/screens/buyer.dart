@@ -5,6 +5,7 @@ import '../widgets.dart';
 import 'product_detail.dart';
 import 'seller.dart';
 import 'pages.dart';
+import '../services/supabase.dart';
 
 class BuyerShell extends StatefulWidget {
   final String? initialCategory;
@@ -64,8 +65,23 @@ class _BuyerShellState extends State<BuyerShell> {
   }
 }
 
-class BuyerHome extends StatelessWidget {
+class BuyerHome extends StatefulWidget {
   const BuyerHome({super.key});
+  @override
+  State<BuyerHome> createState() => _BuyerHomeState();
+}
+
+class _BuyerHomeState extends State<BuyerHome> {
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    await refreshRemoteProducts();
+    if (mounted) setState(() {});
+  }
 
   void _open(BuildContext c, Product p) =>
       Navigator.push(c, MaterialPageRoute(builder: (_) => ProductDetail(p)));
@@ -76,7 +92,9 @@ class BuyerHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final featured = allProducts.take(6).toList();
-    return CustomScrollView(slivers: [
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), slivers: [
       SliverAppBar(
         floating: true,
         backgroundColor: Colors.white,
@@ -126,7 +144,7 @@ class BuyerHome extends StatelessWidget {
                 childCount: featured.length),
           )),
       const SliverToBoxAdapter(child: SizedBox(height: 24)),
-    ]);
+    ]));
   }
 }
 
@@ -146,6 +164,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
   void initState() {
     super.initState();
     _category = widget.initialCategory;
+    _load();
+  }
+
+  Future<void> _load() async {
+    await refreshRemoteProducts();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -170,23 +194,30 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         () => setState(() => _category = c.name)),
                 ])),
         Expanded(
-            child: items.isEmpty
-                ? const Center(
-                    child: Text('No products in this category yet.',
-                        style: TextStyle(color: AppColors.muted)))
-                : GridView.builder(
-                    padding: const EdgeInsets.all(16),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 12,
-                            crossAxisSpacing: 12,
-                            childAspectRatio: 0.72),
-                    itemCount: items.length,
-                    itemBuilder: (_, i) => ProductCard(items[i],
-                        onTap: () => Navigator.push(context,
-                            MaterialPageRoute(builder: (_) => ProductDetail(items[i])))),
-                  )),
+            child: RefreshIndicator(
+                onRefresh: _load,
+                child: items.isEmpty
+                    ? ListView(physics: const AlwaysScrollableScrollPhysics(), children: const [
+                        Padding(
+                            padding: EdgeInsets.only(top: 100),
+                            child: Center(
+                                child: Text('No products in this category yet.',
+                                    style: TextStyle(color: AppColors.muted))))
+                      ])
+                    : GridView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(16),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                mainAxisSpacing: 12,
+                                crossAxisSpacing: 12,
+                                childAspectRatio: 0.72),
+                        itemCount: items.length,
+                        itemBuilder: (_, i) => ProductCard(items[i],
+                            onTap: () => Navigator.push(context,
+                                MaterialPageRoute(builder: (_) => ProductDetail(items[i])))),
+                      ))),
       ]),
     );
   }

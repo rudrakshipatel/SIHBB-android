@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../data.dart';
+import '../theme.dart';
 
 /// Publishes listings to Supabase using the ANON key only (safe to ship in the
 /// client; access is governed by RLS). The service_role key must NEVER be
@@ -93,4 +94,71 @@ Future<void> publishToSupabase(Product p) async {
         )
         .timeout(const Duration(seconds: 60));
   }
+}
+
+/// Fetches all published products (with their artisan + primary image) from
+/// Supabase, so every device sees listings published from any device.
+Future<List<Product>> fetchRemoteProducts() async {
+  if (!supabaseConfigured) return const [];
+  const select =
+      'id,name_en,name_local,category,description,cultural_context,materials,price,'
+      'artisans(display_name,location_state,location_district),'
+      'product_images(url,is_primary,position)';
+  final res = await http
+      .get(
+        Uri.parse(
+            '$_url/rest/v1/products?status=eq.published&select=$select&order=created_at.desc&limit=200'),
+        headers: _authHeaders,
+      )
+      .timeout(const Duration(seconds: 30));
+  if (res.statusCode != 200) {
+    throw Exception('Supabase fetch ${res.statusCode}: ${res.body}');
+  }
+  final list = jsonDecode(res.body) as List;
+  return list.map(_mapRow).toList();
+}
+
+/// Replaces [remoteProducts] with the latest from Supabase. Best-effort: keeps
+/// whatever is already loaded on failure (e.g. offline).
+Future<void> refreshRemoteProducts() async {
+  try {
+    final list = await fetchRemoteProducts();
+    remoteProducts
+      ..clear()
+      ..addAll(list);
+  } catch (_) {/* keep current list */}
+}
+
+Product _mapRow(dynamic row) {
+  final m = row as Map;
+  final imgs = (m['product_images'] as List?) ?? const [];
+  String? url;
+  if (imgs.isNotEmpty) {
+    final primary = imgs.firstWhere(
+        (e) => (e as Map)['is_primary'] == true,
+        orElse: () => imgs.first);
+    url = (primary as Map)['url']?.toString();
+  }
+  final art = m['artisans'] as Map?;
+  final loc = [art?['location_district'], art?['location_state']]
+      .where((e) => e != null && '$e'.trim().isNotEmpty)
+      .join(', ');
+  final price = m['price'];
+  return Product(
+    id: m['id'].toString(),
+    name: (m['name_en'] ?? 'Untitled').toString(),
+    nameLocal: (m['name_local'] ?? '').toString(),
+    price: price is num ? price.round() : (int.tryParse('$price') ?? 0),
+    category: (m['category'] ?? '').toString(),
+    sub: '',
+    artisan: (art?['display_name'] ?? 'Artisan').toString(),
+    location: loc.isEmpty ? 'India' : loc,
+    description: (m['description'] ?? '').toString(),
+    cultural: (m['cultural_context'] ?? '').toString(),
+    materials:
+        ((m['materials'] as List?) ?? const []).map((e) => e.toString()).toList(),
+    c1: AppColors.green,
+    c2: AppColors.terracotta,
+    imageUrl: url,
+  );
 }

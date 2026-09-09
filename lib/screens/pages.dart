@@ -65,7 +65,7 @@ class CategoryProductsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = products.where((p) => p.category == category && (sub == null || p.sub == sub)).toList();
+    final items = allProducts.where((p) => p.category == category && (sub == null || p.sub == sub || p.sub.isEmpty)).toList();
     return Scaffold(
       appBar: AppBar(title: Text(sub ?? category.split(',').first, style: serif(size: 17, color: AppColors.green))),
       body: items.isEmpty

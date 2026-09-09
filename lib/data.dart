@@ -27,6 +27,7 @@ class Product {
   final bool b2bOnly;
   final String? image; // asset path; when set, shown instead of the gradient
   final Uint8List? imageBytes; // in-memory photo (artisan-published listings)
+  final String? imageUrl; // network photo (products synced from Supabase)
   final int? priceMax; // when set, the product shows a price range
   final String? productInfo; // longer "Product Information" block
   final List<String> segments; // recommended market segments
@@ -48,6 +49,7 @@ class Product {
     this.b2bOnly = false,
     this.image,
     this.imageBytes,
+    this.imageUrl,
     this.priceMax,
     this.productInfo,
     this.segments = const [],
@@ -63,9 +65,13 @@ final List<Product> userProducts = <Product>[];
 /// The buyer's in-session cart (in-memory).
 final List<Product> cart = <Product>[];
 
-/// Everything shown to buyers: freshly published listings first, then the seed
-/// catalogue.
-List<Product> get allProducts => [...userProducts.reversed, ...products];
+/// Products fetched from Supabase (published by any device). Refreshed from the
+/// server; seeded from local publishes so this device shows its own offline.
+final List<Product> remoteProducts = <Product>[];
+
+/// Everything shown to buyers: synced/published listings first (newest), then
+/// the seed catalogue.
+List<Product> get allProducts => [...remoteProducts, ...products];
 
 class Artisan {
   final String name;

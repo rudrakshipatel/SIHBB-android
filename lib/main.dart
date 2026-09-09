@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
+import 'data.dart';
 import 'screens/landing.dart';
 import 'services/store.dart';
 
@@ -8,6 +9,9 @@ void main() async {
   try {
     await initStore();
     await loadUserProducts();
+    // Seed the shared catalogue with this device's own listings so they show
+    // offline; the buyer screen refreshes from Supabase to pull in everyone's.
+    remoteProducts.addAll(userProducts.reversed);
   } catch (_) {
     // First run or storage unavailable — start with an empty catalogue.
   }

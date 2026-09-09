@@ -360,6 +360,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
     );
     userProducts.add(product);
     saveUserProduct(product); // offline-first: always kept on device
+    remoteProducts.insert(0, product); // show in the buyer catalogue at once
 
     var msg = 'Published — see it in Buyer ▸ Featured Products';
     if (supabaseConfigured) {

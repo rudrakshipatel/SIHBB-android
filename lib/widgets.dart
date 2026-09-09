@@ -79,12 +79,24 @@ class ProductThumb extends StatelessWidget {
         child: Image.memory(p.imageBytes!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
       );
     }
+    if (p.imageUrl != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: Image.network(p.imageUrl!, fit: BoxFit.cover, width: double.infinity, height: double.infinity,
+          errorBuilder: (_, _, _) => _gradient(),
+          loadingBuilder: (c, child, prog) => prog == null ? child : Container(color: AppColors.creamDeep, child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))),
+      );
+    }
     if (p.image != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(radius),
         child: Image.asset(p.image!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
       );
     }
+    return _gradient();
+  }
+
+  Widget _gradient() {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
