@@ -185,27 +185,32 @@ class _AddProduct extends StatelessWidget {
   const _AddProduct();
   @override
   Widget build(BuildContext context) {
-    const steps = [
-      ['📷', 'Add photos', 'Snap or upload 1–3 clear photos of your craft'],
-      ['🎤', 'Describe by voice', 'Speak in your language — AI transcribes it'],
-      ['⚡', 'AI builds the catalog', 'Title, description, tags & fair price, auto-generated'],
-      ['🚀', 'Publish', 'Your product goes live to buyers across India'],
+    const steps = <(IconData, String, String)>[
+      (Icons.photo_camera_outlined, 'Add photos', 'Snap or upload 1–3 clear photos of your craft'),
+      (Icons.mic_none, 'Describe by voice', 'Speak in your language — AI transcribes it'),
+      (Icons.auto_awesome, 'AI builds the catalog', 'Title, description, tags & fair price, auto-generated'),
+      (Icons.rocket_launch_outlined, 'Publish', 'Your product goes live to buyers across India'),
     ];
     return Column(children: [
       AppBar(title: Text('Add Product', style: serif(size: 17, color: AppColors.green)), automaticallyImplyLeading: false),
       Expanded(child: ListView(padding: const EdgeInsets.all(16), children: [
         Text('Turn your craft into a listing in under 90 seconds.', style: serif(size: 18, color: AppColors.green)),
-        const SizedBox(height: 16),
-        for (var i = 0; i < steps.length; i++) Card(margin: const EdgeInsets.only(bottom: 10), child: Padding(padding: const EdgeInsets.all(14), child: Row(children: [
-          Text(steps[i][0], style: const TextStyle(fontSize: 26)),
-          const SizedBox(width: 14),
+        const SizedBox(height: 18),
+        for (var i = 0; i < steps.length; i++) Card(margin: const EdgeInsets.only(bottom: 14), child: Padding(padding: const EdgeInsets.all(20), child: Row(children: [
+          Container(
+            width: 46, height: 46,
+            decoration: const BoxDecoration(color: AppColors.creamDeep, shape: BoxShape.circle),
+            child: Icon(steps[i].$1, color: AppColors.green, size: 24),
+          ),
+          const SizedBox(width: 16),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${i + 1}. ${steps[i][1]}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-            Text(steps[i][2], style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+            Text('${i + 1}. ${steps[i].$2}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5)),
+            const SizedBox(height: 3),
+            Text(steps[i].$3, style: const TextStyle(color: AppColors.muted, fontSize: 13.5, height: 1.3)),
           ])),
         ]))),
-        const SizedBox(height: 8),
-        SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiCameraScreen())), style: FilledButton.styleFrom(backgroundColor: AppColors.terracotta, padding: const EdgeInsets.symmetric(vertical: 14)), icon: const Icon(Icons.camera_alt_outlined), label: const Text('Start with a photo'))),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiCameraScreen())), style: FilledButton.styleFrom(backgroundColor: AppColors.terracotta, padding: const EdgeInsets.symmetric(vertical: 16)), icon: const Icon(Icons.camera_alt_outlined), label: const Text('Start with a photo'))),
       ])),
     ]);
   }

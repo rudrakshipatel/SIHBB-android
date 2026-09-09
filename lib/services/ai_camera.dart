@@ -124,11 +124,12 @@ Future<CatalogResult> generateCatalogFromPhoto(
   String? imagePath,
   String? craftHint,
   String? location,
+  List<Uint8List> moreImages = const [],
 }) async {
   // 1) Gemini vision (preferred) when its key was compiled in.
   if (_geminiKey.isNotEmpty) {
     try {
-      return await _geminiVision(bytes, mediaType, craftHint, location);
+      return await _geminiVision(bytes, mediaType, craftHint, location, moreImages);
     } catch (_) {
       // fall through
     }
@@ -266,6 +267,7 @@ Future<CatalogResult> _geminiVision(
   String mediaType,
   String? craftHint,
   String? location,
+  List<Uint8List> moreImages,
 ) async {
   final b64 = base64Encode(bytes);
   const sys =
@@ -297,6 +299,14 @@ Future<CatalogResult> _geminiVision(
                 {
                   'inline_data': {'mime_type': mediaType, 'data': b64}
                 },
+                // Additional angles of the same product (up to the caller's cap).
+                for (final extra in moreImages)
+                  {
+                    'inline_data': {
+                      'mime_type': 'image/jpeg',
+                      'data': base64Encode(extra)
+                    }
+                  },
                 {'text': user},
               ],
             }

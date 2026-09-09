@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../data.dart';
@@ -16,16 +15,21 @@ Future<void> initStore() async {
   final path = '${await getDatabasesPath()}/hastakala.db';
   _db = await openDatabase(
     path,
-    version: 1,
+    version: 2,
     onCreate: (db, _) => db.execute('''
       CREATE TABLE products(
         id TEXT PRIMARY KEY,
         name TEXT, name_local TEXT, price INTEGER,
         category TEXT, sub TEXT, artisan TEXT, location TEXT,
-        description TEXT, cultural TEXT,
+        description TEXT, description_local TEXT, cultural TEXT,
         materials TEXT, segments TEXT,
         image BLOB, created_at INTEGER
       )'''),
+    onUpgrade: (db, oldV, newV) async {
+      if (oldV < 2) {
+        await db.execute('ALTER TABLE products ADD COLUMN description_local TEXT');
+      }
+    },
   );
 }
 
@@ -54,6 +58,7 @@ Future<void> saveUserProduct(Product p) async {
     'artisan': p.artisan,
     'location': p.location,
     'description': p.description,
+    'description_local': p.descriptionLocal,
     'cultural': p.cultural,
     'materials': jsonEncode(p.materials),
     'segments': jsonEncode(p.segments),
@@ -82,6 +87,7 @@ Product _fromRow(Map<String, Object?> r) {
     artisan: (r['artisan'] as String?) ?? '',
     location: (r['location'] as String?) ?? '',
     description: (r['description'] as String?) ?? '',
+    descriptionLocal: (r['description_local'] as String?) ?? '',
     cultural: (r['cultural'] as String?) ?? '',
     materials: list(r['materials']),
     segments: list(r['segments']),

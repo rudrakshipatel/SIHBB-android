@@ -18,7 +18,8 @@ class Product {
   final String sub;
   final String artisan;
   final String location;
-  final String description;
+  final String description; // buyer-facing, always English
+  final String descriptionLocal; // artisan's own language (editable), optional
   final String cultural;
   final List<String> materials;
   final Color c1;
@@ -39,6 +40,7 @@ class Product {
     required this.artisan,
     required this.location,
     required this.description,
+    this.descriptionLocal = '',
     required this.cultural,
     required this.materials,
     required this.c1,

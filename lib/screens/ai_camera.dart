@@ -14,8 +14,19 @@ import '../services/ai_camera.dart';
 import '../services/store.dart';
 import '../services/voice.dart';
 
-/// AI camera cataloging: capture or pick a product photo, send it to Claude
-/// vision (or the offline mock), and get an auto-filled, editable listing.
+/// One captured product photo (1–3 allowed per listing).
+class _Photo {
+  final Uint8List bytes;
+  final String path;
+  final String mediaType;
+  final bool cutout;
+  final double? sharpness;
+  const _Photo(this.bytes, this.path, this.mediaType,
+      {this.cutout = false, this.sharpness});
+}
+
+/// AI camera cataloging: 1–3 photos + an optional spoken description, sent to
+/// the AI to build an editable listing.
 class AiCameraScreen extends StatefulWidget {
   const AiCameraScreen({super.key});
   @override
@@ -28,27 +39,23 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   static const double _wagePerHour = 35; // w: ₹ artisan labour per hour
   static const double _margin = 0.25; // m: fair profit margin
   static const double _overheadRate = 0.10; // k: packaging/power/wastage on C_raw
+  static const int _maxPhotos = 3;
+  static const double _blurWarn = 100; // variance-of-Laplacian warn threshold
 
   final _picker = ImagePicker();
-  final _hint = TextEditingController();
   final _name = TextEditingController();
+  final _desc = TextEditingController(); // artisan's description (their language)
   final _materials = TextEditingController();
   final _rawCost = TextEditingController();
   final _hours = TextEditingController();
   final _rate = TextEditingController();
   final _inventory = TextEditingController();
   final _price = TextEditingController();
-  final _desc = TextEditingController();
   final _tags = TextEditingController();
 
-  // Photo-quality: variance-of-Laplacian (0-255 gray). Higher = sharper.
-  static const double _blurWarn = 100; // below this we warn the artisan
-
-  Uint8List? _bytes;
-  String? _path;
-  String _mediaType = 'image/jpeg';
-  double? _sharpness; // variance of Laplacian for the current photo
-  bool _cutout = false; // background already removed for the current photo
+  final List<_Photo> _photos = [];
+  String _descEn = ''; // English version shown to buyers
+  bool _descLocal = false; // true when _desc holds a non-English language
   bool _cutoutBusy = false;
   CatalogResult? _result;
   bool _busy = false;
@@ -59,28 +66,145 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   bool _transcribing = false;
   VoiceResult? _voice;
 
+  _Photo? get _primary => _photos.isEmpty ? null : _photos.first;
+  bool get _isBlurry =>
+      _primary?.sharpness != null && _primary!.sharpness! < _blurWarn;
+
   @override
   void dispose() {
-    _hint.dispose();
     _name.dispose();
+    _desc.dispose();
     _materials.dispose();
     _rawCost.dispose();
     _hours.dispose();
     _rate.dispose();
     _inventory.dispose();
     _price.dispose();
-    _desc.dispose();
     _tags.dispose();
     _recorder.dispose();
     super.dispose();
   }
 
-  /// Record the artisan's spoken description (any of 22 Indian languages),
-  /// then transcribe + translate it. The English text seeds the craft context
-  /// used by the AI; the original words are shown back for confirmation.
+  double get _wage => double.tryParse(_rate.text.trim()) ?? _wagePerHour;
+
+  // ---------------- Photos (1–3) ----------------
+
+  Future<void> _appendXFile(XFile x) async {
+    final bytes = await x.readAsBytes();
+    final p = x.path.toLowerCase();
+    final mt = p.endsWith('.png')
+        ? 'image/png'
+        : p.endsWith('.webp')
+            ? 'image/webp'
+            : 'image/jpeg';
+    if (!mounted) return;
+    setState(() {
+      _photos.add(_Photo(bytes, x.path, mt, sharpness: _computeSharpness(bytes)));
+      _result = null; // photos changed → needs re-analysis
+    });
+  }
+
+  Future<void> _addFromCamera() async {
+    if (_photos.length >= _maxPhotos) return;
+    try {
+      final x = await _picker.pickImage(
+          source: ImageSource.camera, maxWidth: 1280, imageQuality: 85);
+      if (x != null) await _appendXFile(x);
+    } catch (e) {
+      _toast('Could not open the camera: $e');
+    }
+  }
+
+  Future<void> _addFromGallery() async {
+    if (_photos.length >= _maxPhotos) return;
+    try {
+      final xs =
+          await _picker.pickMultiImage(maxWidth: 1280, imageQuality: 85);
+      for (final x in xs) {
+        if (_photos.length >= _maxPhotos) break;
+        await _appendXFile(x);
+      }
+    } catch (e) {
+      _toast('Could not open the gallery: $e');
+    }
+  }
+
+  void _removePhoto(int i) => setState(() {
+        _photos.removeAt(i);
+        _result = null;
+      });
+
+  double _computeSharpness(Uint8List bytes) {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return _blurWarn;
+    final g = img.grayscale(img.copyResize(decoded, width: 320));
+    final w = g.width, h = g.height;
+    double lum(int x, int y) => g.getPixel(x, y).r.toDouble();
+    double sum = 0, sumSq = 0;
+    int n = 0;
+    for (int y = 1; y < h - 1; y++) {
+      for (int x = 1; x < w - 1; x++) {
+        final lap = 4 * lum(x, y) -
+            lum(x - 1, y) -
+            lum(x + 1, y) -
+            lum(x, y - 1) -
+            lum(x, y + 1);
+        sum += lap;
+        sumSq += lap * lap;
+        n++;
+      }
+    }
+    if (n == 0) return _blurWarn;
+    final mean = sum / n;
+    return sumSq / n - mean * mean;
+  }
+
+  /// On-device background removal for the main (first) photo.
+  Future<void> _removeBackground() async {
+    final primary = _primary;
+    if (primary == null || _cutoutBusy || primary.cutout) return;
+    setState(() => _cutoutBusy = true);
+    final segmenter = SubjectSegmenter(
+      options: SubjectSegmenterOptions(
+        enableForegroundBitmap: true,
+        enableForegroundConfidenceMask: false,
+        enableMultipleSubjects: SubjectResultOptions(
+            enableConfidenceMask: false, enableSubjectBitmap: false),
+      ),
+    );
+    try {
+      final result =
+          await segmenter.processImage(InputImage.fromFilePath(primary.path));
+      final fg = result.foregroundBitmap;
+      final fgImg = fg == null ? null : img.decodeImage(fg);
+      if (fgImg == null) throw Exception('no subject detected');
+      final canvas = img.Image(width: fgImg.width, height: fgImg.height);
+      img.fill(canvas, color: img.ColorRgb8(255, 255, 255));
+      img.compositeImage(canvas, fgImg);
+      final out = Uint8List.fromList(img.encodeJpg(canvas, quality: 90));
+      final tmp = File(
+          '${Directory.systemTemp.path}/cutout_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await tmp.writeAsBytes(out);
+      if (!mounted) return;
+      setState(() {
+        _photos[0] = _Photo(out, tmp.path, 'image/jpeg',
+            cutout: true, sharpness: _computeSharpness(out));
+      });
+    } catch (e) {
+      _toast("Couldn't remove background: $e");
+    } finally {
+      await segmenter.close();
+      if (mounted) setState(() => _cutoutBusy = false);
+    }
+  }
+
+  // ---------------- Voice (any of 22 Indian languages) ----------------
+
+  /// Records the spoken description and transcribes it. The artisan's own
+  /// language is kept in the editable field; the English translation is what
+  /// buyers see.
   Future<void> _toggleVoice() async {
     if (_transcribing) return;
-    // Stop -> transcribe.
     if (_recording) {
       final path = await _recorder.stop();
       setState(() {
@@ -94,29 +218,25 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
         if (!mounted) return;
         setState(() {
           _voice = v;
-          if (v.transcriptEn.trim().isNotEmpty) {
-            _hint.text = v.transcriptEn.trim();
-          }
+          final en = v.transcriptEn.trim();
+          final orig = v.transcript.trim();
+          if (orig.isNotEmpty) _desc.text = orig; // artisan's own language
+          _descLocal = en.isNotEmpty && en.toLowerCase() != orig.toLowerCase();
+          _descEn = _descLocal ? en : '';
         });
       } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Couldn't transcribe: $e")));
+        _toast("Couldn't transcribe: $e");
       } finally {
         if (mounted) setState(() => _transcribing = false);
       }
       return;
     }
-    // Start recording.
     if (!voiceIsLive) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Voice needs a Gemini or Bhashini key in the build')));
+      _toast('Voice needs a Gemini or Bhashini key in the build');
       return;
     }
     if (!await _recorder.hasPermission()) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Microphone permission denied')));
+      _toast('Microphone permission denied');
       return;
     }
     final path =
@@ -133,153 +253,59 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
     });
   }
 
-  /// Artisan-entered hourly rate, defaulting to the standard wage when blank.
-  double get _wage => double.tryParse(_rate.text.trim()) ?? _wagePerHour;
+  // ---------------- Analyse & publish ----------------
 
-  /// On-device blur score = variance of the Laplacian over a downscaled
-  /// grayscale copy. Runs offline; higher means sharper.
-  double _computeSharpness(Uint8List bytes) {
-    final decoded = img.decodeImage(bytes);
-    if (decoded == null) return _blurWarn; // unknown -> don't warn
-    final g = img.grayscale(img.copyResize(decoded, width: 320));
-    final w = g.width, h = g.height;
-    double lum(int x, int y) => g.getPixel(x, y).r.toDouble();
-    double sum = 0, sumSq = 0;
-    int n = 0;
-    for (int y = 1; y < h - 1; y++) {
-      for (int x = 1; x < w - 1; x++) {
-        final lap =
-            4 * lum(x, y) - lum(x - 1, y) - lum(x + 1, y) - lum(x, y - 1) - lum(x, y + 1);
-        sum += lap;
-        sumSq += lap * lap;
-        n++;
-      }
-    }
-    if (n == 0) return _blurWarn;
-    final mean = sum / n;
-    return sumSq / n - mean * mean; // variance of Laplacian
-  }
-
-  bool get _isBlurry => _sharpness != null && _sharpness! < _blurWarn;
-
-  /// On-device background removal (ML Kit Subject Segmentation — no key, no
-  /// network after the model downloads). Composites the subject onto white and
-  /// makes that the product photo.
-  Future<void> _removeBackground() async {
-    final path = _path;
-    if (path == null || _cutoutBusy) return;
-    setState(() => _cutoutBusy = true);
-    final segmenter = SubjectSegmenter(
-      options: SubjectSegmenterOptions(
-        enableForegroundBitmap: true,
-        enableForegroundConfidenceMask: false,
-        enableMultipleSubjects: SubjectResultOptions(
-            enableConfidenceMask: false, enableSubjectBitmap: false),
-      ),
-    );
-    try {
-      final result =
-          await segmenter.processImage(InputImage.fromFilePath(path));
-      final fg = result.foregroundBitmap;
-      final fgImg = fg == null ? null : img.decodeImage(fg);
-      if (fgImg == null) throw Exception('no subject detected');
-      // Flatten the transparent cut-out onto a white studio background.
-      final canvas = img.Image(width: fgImg.width, height: fgImg.height);
-      img.fill(canvas, color: img.ColorRgb8(255, 255, 255));
-      img.compositeImage(canvas, fgImg);
-      final out = Uint8List.fromList(img.encodeJpg(canvas, quality: 90));
-      final tmp = File(
-          '${Directory.systemTemp.path}/cutout_${DateTime.now().millisecondsSinceEpoch}.jpg');
-      await tmp.writeAsBytes(out);
-      if (!mounted) return;
-      setState(() {
-        _bytes = out;
-        _path = tmp.path;
-        _mediaType = 'image/jpeg';
-        _cutout = true;
-        _sharpness = _computeSharpness(out);
-      });
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Couldn't remove background: $e")));
-    } finally {
-      await segmenter.close();
-      if (mounted) setState(() => _cutoutBusy = false);
-    }
-  }
-
-  /// Suggests one fixed price from the artisan's costs (editable afterwards).
-  /// Falls back to the AI category ballpark until costs are entered.
   void _recalcPrice() {
     final raw = double.tryParse(_rawCost.text.trim()) ?? 0;
     final hrs = double.tryParse(_hours.text.trim()) ?? 0;
     final r = _result;
     double suggested;
     if (raw > 0 || hrs > 0) {
-      final overhead = raw * _overheadRate; // O = k * C_raw
-      suggested = (raw + hrs * _wage + overhead) * (1 + _margin);
+      suggested = (raw + hrs * _wage + raw * _overheadRate) * (1 + _margin);
     } else if (r?.priceMin != null && r?.priceMax != null) {
       suggested = (r!.priceMin! + r.priceMax!) / 2;
     } else {
       suggested = double.tryParse(_price.text.trim()) ?? 1000;
     }
-    final rounded = (suggested / 50).round() * 50; // nearest ₹50
+    final rounded = (suggested / 50).round() * 50;
     setState(() => _price.text = rounded.toString());
   }
 
-  Future<void> _pick(ImageSource source) async {
-    try {
-      final x = await _picker.pickImage(
-          source: source, maxWidth: 1280, imageQuality: 85);
-      if (x == null) return;
-      final bytes = await x.readAsBytes();
-      final path = x.path.toLowerCase();
-      final mt = path.endsWith('.png')
-          ? 'image/png'
-          : path.endsWith('.webp')
-              ? 'image/webp'
-              : 'image/jpeg';
-      setState(() {
-        _bytes = bytes;
-        _path = x.path;
-        _mediaType = mt;
-        _result = null;
-        _cutout = false;
-        _sharpness = _computeSharpness(bytes);
-      });
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open the camera/gallery: $e')));
-    }
-  }
-
   Future<void> _analyze() async {
-    final bytes = _bytes;
-    if (bytes == null) return;
+    final primary = _primary;
+    if (primary == null) return;
     setState(() => _busy = true);
+    // English context for the model (translation if the artisan spoke a
+    // regional language, otherwise the typed/spoken text as-is).
+    final ctx = _descLocal && _descEn.isNotEmpty ? _descEn : _desc.text.trim();
     final r = await generateCatalogFromPhoto(
-      bytes,
-      mediaType: _mediaType,
-      imagePath: _path,
-      craftHint: _hint.text.trim().isEmpty ? null : _hint.text.trim(),
+      primary.bytes,
+      mediaType: primary.mediaType,
+      imagePath: primary.path,
+      craftHint: ctx.isEmpty ? null : ctx,
       location: 'Rekha Devi · Bhuj, Gujarat',
+      moreImages: _photos.skip(1).map((e) => e.bytes).toList(),
     );
     if (!mounted) return;
     setState(() {
       _result = r;
       _busy = false;
       _name.text = r.productName;
-      _desc.text = r.description;
       _materials.text = r.materials.join(', ');
       if (_rate.text.trim().isEmpty) _rate.text = _wagePerHour.round().toString();
       _tags.text = r.tags.map((t) => '#${t.replaceAll(' ', '')}').join(' ');
+      if (_descLocal) {
+        // Keep the artisan's own-language description; use the AI's English
+        // copy for buyers.
+        if (r.description.trim().isNotEmpty) _descEn = r.description.trim();
+      } else if (_desc.text.trim().isEmpty) {
+        _desc.text = r.description; // English
+      }
     });
-    _recalcPrice(); // seed the fixed price from the AI ballpark
+    _recalcPrice();
   }
 
-  void _publish() {
+  Future<void> _publish() async {
     final r = _result;
     if (r == null) return;
     final price = int.tryParse(_price.text.trim()) ?? (r.priceMin ?? 1000);
@@ -288,6 +314,11 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
+    final localText = _desc.text.trim();
+    // Buyers always see English.
+    final english = _descLocal
+        ? (_descEn.isNotEmpty ? _descEn : (r.description))
+        : (localText.isEmpty ? r.description : localText);
     final product = Product(
       id: 'user-${DateTime.now().millisecondsSinceEpoch}',
       name: _name.text.trim().isEmpty ? r.productName : _name.text.trim(),
@@ -297,78 +328,82 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       sub: r.craftType,
       artisan: 'Rekha Devi',
       location: 'Bhuj, Gujarat',
-      description: _desc.text.trim().isEmpty ? r.description : _desc.text.trim(),
+      description: english,
+      descriptionLocal: _descLocal ? localText : '',
       cultural: r.culturalContext,
       materials: mats.isEmpty ? r.materials : mats,
       c1: AppColors.green,
       c2: AppColors.terracotta,
-      imageBytes: _bytes,
+      imageBytes: _primary?.bytes,
       segments: [...r.b2cSegments, ...r.b2bSegments],
     );
     userProducts.add(product);
-    saveUserProduct(product); // persist offline (SQLite)
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('✅ Published — see it in Buyer ▸ Featured Products')));
-    Navigator.of(context).pop();
+    saveUserProduct(product);
+    _toast('Published — see it in Buyer ▸ Featured Products');
+    if (mounted) Navigator.of(context).pop();
   }
+
+  void _toast(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
+  // ---------------- UI ----------------
 
   @override
   Widget build(BuildContext context) {
     final r = _result;
+    final full = _photos.length >= _maxPhotos;
     return Scaffold(
       appBar: AppBar(
-          title: Text('AI Camera', style: serif(size: 17, color: AppColors.green))),
+          title:
+              Text('AI Camera', style: serif(size: 17, color: AppColors.green))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         _providerBadge(),
         const SizedBox(height: 12),
-        _photoArea(),
+        _photoStrip(),
         const SizedBox(height: 12),
         Row(children: [
           Expanded(
               child: OutlinedButton.icon(
-                  onPressed: _busy ? null : () => _pick(ImageSource.camera),
+                  onPressed: (_busy || full) ? null : _addFromCamera,
                   icon: const Icon(Icons.camera_alt_outlined),
                   label: const Text('Take photo'))),
           const SizedBox(width: 10),
           Expanded(
               child: OutlinedButton.icon(
-                  onPressed: _busy ? null : () => _pick(ImageSource.gallery),
+                  onPressed: (_busy || full) ? null : _addFromGallery,
                   icon: const Icon(Icons.photo_library_outlined),
                   label: const Text('Gallery'))),
         ]),
-        if (_bytes != null) ...[
+        if (_primary != null) ...[
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed:
-                  (_busy || _cutoutBusy || _cutout) ? null : _removeBackground,
+              onPressed: (_busy || _cutoutBusy || (_primary?.cutout ?? false))
+                  ? null
+                  : _removeBackground,
               icon: _cutoutBusy
                   ? const SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2))
-                  : Icon(_cutout ? Icons.check : Icons.auto_fix_high,
-                      size: 18),
+                  : Icon((_primary?.cutout ?? false)
+                      ? Icons.check
+                      : Icons.auto_fix_high, size: 18),
               label: Text(_cutoutBusy
                   ? 'Removing background…'
-                  : _cutout
+                  : (_primary?.cutout ?? false)
                       ? 'Background removed'
-                      : 'Remove background (on-device)'),
+                      : 'Remove background — main photo'),
             ),
           ),
         ],
         const SizedBox(height: 12),
-        TextField(
-          controller: _hint,
-          maxLines: null,
-          decoration: const InputDecoration(
-            isDense: true,
-            border: OutlineInputBorder(),
-            labelText: 'Describe your craft (optional — or use voice)',
-            hintText: 'e.g. terracotta bowl, saree, brass birds',
-          ),
-        ),
+        _field('Describe your craft (in your language — or use voice)', _desc,
+            lines: 3),
+        if (_descLocal && _descEn.isNotEmpty) _englishPreview(),
         const SizedBox(height: 10),
         _voiceButton(),
         if (_voice != null && _voice!.transcript.trim().isNotEmpty)
@@ -377,7 +412,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
-            onPressed: (_bytes == null || _busy) ? null : _analyze,
+            onPressed: (_primary == null || _busy) ? null : _analyze,
             style: FilledButton.styleFrom(
                 backgroundColor: AppColors.terracotta,
                 padding: const EdgeInsets.symmetric(vertical: 14)),
@@ -388,7 +423,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: Colors.white))
                 : const Icon(Icons.auto_awesome),
-            label: Text(_busy ? 'Analysing photo…' : 'Analyse with AI'),
+            label: Text(_busy ? 'Analysing…' : 'Analyse with AI'),
           ),
         ),
         if (r != null) ...[
@@ -398,6 +433,121 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       ]),
     );
   }
+
+  Widget _photoStrip() {
+    if (_photos.isEmpty) {
+      return AspectRatio(
+        aspectRatio: 4 / 3,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: const Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.add_a_photo_outlined, size: 40, color: AppColors.muted),
+            SizedBox(height: 8),
+            Text('Add 1–3 photos of your craft',
+                style: TextStyle(color: AppColors.muted, fontSize: 12)),
+          ])),
+        ),
+      );
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Photos (${_photos.length}/$_maxPhotos)',
+          style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+      const SizedBox(height: 6),
+      SizedBox(
+        height: 116,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: _photos.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 10),
+          itemBuilder: (_, i) => _thumb(i),
+        ),
+      ),
+    ]);
+  }
+
+  Widget _thumb(int i) {
+    final blurryMain = i == 0 && _isBlurry;
+    return SizedBox(
+      width: 116,
+      child: Stack(children: [
+        Positioned.fill(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.memory(_photos[i].bytes, fit: BoxFit.cover),
+          ),
+        ),
+        if (i == 0)
+          Positioned(
+            left: 6,
+            top: 6,
+            child: _tag('Main', AppColors.green),
+          ),
+        Positioned(
+          right: 4,
+          top: 4,
+          child: GestureDetector(
+            onTap: () => _removePhoto(i),
+            child: Container(
+              decoration: const BoxDecoration(
+                  color: Color(0xCC000000), shape: BoxShape.circle),
+              padding: const EdgeInsets.all(3),
+              child: const Icon(Icons.close, size: 15, color: Colors.white),
+            ),
+          ),
+        ),
+        if (blurryMain)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xE6B55A34),
+                borderRadius:
+                    BorderRadius.vertical(bottom: Radius.circular(12)),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 5),
+              child: const Text('blurry',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700)),
+            ),
+          ),
+      ]),
+    );
+  }
+
+  Widget _tag(String t, Color c) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration:
+            BoxDecoration(color: c, borderRadius: BorderRadius.circular(999)),
+        child: Text(t,
+            style: const TextStyle(
+                color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
+      );
+
+  Widget _englishPreview() => Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Icon(Icons.translate, size: 14, color: AppColors.greenSoft),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text('Buyers will see (English): $_descEn',
+                style: const TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.muted,
+                    fontStyle: FontStyle.italic,
+                    height: 1.3)),
+          ),
+        ]),
+      );
 
   Widget _voiceButton() {
     final recording = _recording;
@@ -440,13 +590,6 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
           ]),
           const SizedBox(height: 4),
           Text(v.transcript, style: const TextStyle(fontSize: 13, height: 1.3)),
-          if (v.transcriptEn.trim().isNotEmpty &&
-              v.transcriptEn.trim() != v.transcript.trim()) ...[
-            const SizedBox(height: 6),
-            Text('English: ${v.transcriptEn}',
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.muted, height: 1.3)),
-          ],
         ]),
       );
 
@@ -464,58 +607,10 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
             size: 16, color: live ? AppColors.greenSoft : AppColors.muted),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            live
-                ? 'Live AI: $aiModelLabel'
-                : 'Demo mode — offline mock (build with an ANTHROPIC_API_KEY for live Claude vision)',
-            style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
-          ),
+          child: Text(live ? 'Live AI: $aiModelLabel' : 'On-device AI (offline)',
+              style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
         ),
       ]),
-    );
-  }
-
-  Widget _photoArea() {
-    return AspectRatio(
-      aspectRatio: 4 / 3,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.line),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: _bytes == null
-            ? const Center(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.add_a_photo_outlined,
-                    size: 40, color: AppColors.muted),
-                SizedBox(height: 8),
-                Text('Snap or choose a photo of your craft',
-                    style: TextStyle(color: AppColors.muted, fontSize: 12)),
-              ]))
-            : Stack(fit: StackFit.expand, children: [
-                Image.memory(_bytes!, fit: BoxFit.cover),
-                if (_isBlurry)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      color: const Color(0xE6B55A34),
-                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-                      child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Icon(Icons.blur_on, size: 14, color: Colors.white),
-                        SizedBox(width: 6),
-                        Flexible(
-                          child: Text('This photo looks blurry — a sharper one sells better',
-                              style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
-                        ),
-                      ]),
-                    ),
-                  ),
-              ]),
-      ),
     );
   }
 
@@ -532,16 +627,12 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       const SizedBox(height: 2),
       Text('Analysed by ${r.provider}',
           style: const TextStyle(
-              fontSize: 11, color: AppColors.greenSoft, fontWeight: FontWeight.w600)),
+              fontSize: 11,
+              color: AppColors.greenSoft,
+              fontWeight: FontWeight.w600)),
       const SizedBox(height: 12),
       if (r.fieldsRequiringConfirmation.isNotEmpty) _confirmBanner(r),
-      Panel(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _field('Product name', _name),
-          const SizedBox(height: 12),
-          _field('Description', _desc, lines: 3),
-        ]),
-      ),
+      Panel(child: _field('Product name', _name)),
       const SizedBox(height: 14),
       Text('A few questions to price it fairly',
           style: serif(size: 15, color: AppColors.green)),
@@ -574,11 +665,13 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
               color: AppColors.creamDeep,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 const Icon(Icons.sell_outlined, size: 16, color: AppColors.green),
                 const SizedBox(width: 6),
-                Text('Suggested price', style: serif(size: 14, color: AppColors.green)),
+                Text('Suggested price',
+                    style: serif(size: 14, color: AppColors.green)),
                 const Spacer(),
                 TextButton(
                     onPressed: _recalcPrice,
@@ -586,7 +679,8 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                    child: const Text('Recalculate', style: TextStyle(fontSize: 11))),
+                    child: const Text('Recalculate',
+                        style: TextStyle(fontSize: 11))),
               ]),
               const SizedBox(height: 8),
               _field('Price (₹) — edit if needed', _price, number: true),
@@ -608,8 +702,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       ),
       if (r.culturalContext.isNotEmpty) ...[
         const SizedBox(height: 12),
-        Text('Cultural context',
-            style: serif(size: 14, color: AppColors.green)),
+        Text('Cultural context', style: serif(size: 14, color: AppColors.green)),
         const SizedBox(height: 4),
         Text(r.culturalContext,
             style: const TextStyle(fontSize: 12.5, height: 1.35)),
@@ -644,10 +737,9 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Please double-check: ${r.fieldsRequiringConfirmation.join(', ')}',
-              style: const TextStyle(
-                  fontSize: 12, color: AppColors.terracotta, height: 1.3),
-            ),
+                'Please double-check: ${r.fieldsRequiringConfirmation.join(', ')}',
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.terracotta, height: 1.3)),
           ),
         ]),
       );
@@ -686,10 +778,14 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   Widget _kv(String k, String v) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: RichText(
-          text: TextSpan(style: const TextStyle(fontSize: 12.5, color: AppColors.ink), children: [
-            TextSpan(text: '$k: ', style: const TextStyle(fontWeight: FontWeight.w700)),
-            TextSpan(text: v),
-          ]),
+          text: TextSpan(
+              style: const TextStyle(fontSize: 12.5, color: AppColors.ink),
+              children: [
+                TextSpan(
+                    text: '$k: ',
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                TextSpan(text: v),
+              ]),
         ),
       );
 
