@@ -43,6 +43,8 @@ dependencies:
   google_mlkit_image_labeling: ^0.15.0
   # On-device background cutout (no key, no backend) for product photos.
   google_mlkit_subject_segmentation: ^0.1.0
+  # Voice capture for "Describe by voice" (transcribed via Gemini/Bhashini).
+  record: ^6.2.0
   # On-device photo-quality (blur) check — pure Dart, no native code.
   image: ^4.8.0
   # Offline persistence for published listings (SQLite, no codegen).

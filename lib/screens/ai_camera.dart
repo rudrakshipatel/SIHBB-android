@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:google_mlkit_subject_segmentation/google_mlkit_subject_segmentation.dart';
+import 'package:record/record.dart';
 
 import '../theme.dart';
 import '../data.dart';
 import '../widgets.dart';
 import '../services/ai_camera.dart';
 import '../services/store.dart';
+import '../services/voice.dart';
 
 /// AI camera cataloging: capture or pick a product photo, send it to Claude
 /// vision (or the offline mock), and get an auto-filled, editable listing.
@@ -51,6 +53,12 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   CatalogResult? _result;
   bool _busy = false;
 
+  // Describe-by-voice state.
+  final _recorder = AudioRecorder();
+  bool _recording = false;
+  bool _transcribing = false;
+  VoiceResult? _voice;
+
   @override
   void dispose() {
     _hint.dispose();
@@ -63,7 +71,66 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
     _price.dispose();
     _desc.dispose();
     _tags.dispose();
+    _recorder.dispose();
     super.dispose();
+  }
+
+  /// Record the artisan's spoken description (any of 22 Indian languages),
+  /// then transcribe + translate it. The English text seeds the craft context
+  /// used by the AI; the original words are shown back for confirmation.
+  Future<void> _toggleVoice() async {
+    if (_transcribing) return;
+    // Stop -> transcribe.
+    if (_recording) {
+      final path = await _recorder.stop();
+      setState(() {
+        _recording = false;
+        _transcribing = true;
+      });
+      try {
+        if (path == null) throw Exception('no audio captured');
+        final bytes = await File(path).readAsBytes();
+        final v = await transcribeVoice(bytes, mime: 'audio/wav');
+        if (!mounted) return;
+        setState(() {
+          _voice = v;
+          if (v.transcriptEn.trim().isNotEmpty) {
+            _hint.text = v.transcriptEn.trim();
+          }
+        });
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Couldn't transcribe: $e")));
+      } finally {
+        if (mounted) setState(() => _transcribing = false);
+      }
+      return;
+    }
+    // Start recording.
+    if (!voiceIsLive) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Voice needs a Gemini or Bhashini key in the build')));
+      return;
+    }
+    if (!await _recorder.hasPermission()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Microphone permission denied')));
+      return;
+    }
+    final path =
+        '${Directory.systemTemp.path}/desc_${DateTime.now().millisecondsSinceEpoch}.wav';
+    await _recorder.start(
+      const RecordConfig(
+          encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1),
+      path: path,
+    );
+    if (!mounted) return;
+    setState(() {
+      _recording = true;
+      _voice = null;
+    });
   }
 
   /// Artisan-entered hourly rate, defaulting to the standard wage when blank.
@@ -294,13 +361,18 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
         const SizedBox(height: 12),
         TextField(
           controller: _hint,
+          maxLines: null,
           decoration: const InputDecoration(
             isDense: true,
             border: OutlineInputBorder(),
-            labelText: 'Craft hint (optional)',
+            labelText: 'Describe your craft (optional — or use voice)',
             hintText: 'e.g. terracotta bowl, saree, brass birds',
           ),
         ),
+        const SizedBox(height: 10),
+        _voiceButton(),
+        if (_voice != null && _voice!.transcript.trim().isNotEmpty)
+          _voiceCard(_voice!),
         const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
@@ -326,6 +398,57 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       ]),
     );
   }
+
+  Widget _voiceButton() {
+    final recording = _recording;
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _busy ? null : _toggleVoice,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: recording ? AppColors.kala : AppColors.green,
+          side: BorderSide(color: recording ? AppColors.kala : AppColors.line),
+        ),
+        icon: _transcribing
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2))
+            : Icon(recording ? Icons.stop_circle : Icons.mic, size: 18),
+        label: Text(_transcribing
+            ? 'Transcribing…'
+            : recording
+                ? 'Stop & transcribe'
+                : 'Describe by voice ($voiceEngineLabel)'),
+      ),
+    );
+  }
+
+  Widget _voiceCard(VoiceResult v) => Container(
+        margin: const EdgeInsets.only(top: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.creamDeep,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.graphic_eq, size: 15, color: AppColors.green),
+            const SizedBox(width: 6),
+            Text('Heard (${v.language})',
+                style: serif(size: 13, color: AppColors.green)),
+          ]),
+          const SizedBox(height: 4),
+          Text(v.transcript, style: const TextStyle(fontSize: 13, height: 1.3)),
+          if (v.transcriptEn.trim().isNotEmpty &&
+              v.transcriptEn.trim() != v.transcript.trim()) ...[
+            const SizedBox(height: 6),
+            Text('English: ${v.transcriptEn}',
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.muted, height: 1.3)),
+          ],
+        ]),
+      );
 
   Widget _providerBadge() {
     final live = aiIsLive;

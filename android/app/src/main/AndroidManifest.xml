@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Required for the AI camera to reach the Anthropic API when a key is provided. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Required for "Describe by voice" audio capture. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <application
         android:label="Hastakala"
         android:name="${applicationName}"
