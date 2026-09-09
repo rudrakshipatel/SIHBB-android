@@ -13,6 +13,7 @@ import '../widgets.dart';
 import '../services/ai_camera.dart';
 import '../services/store.dart';
 import '../services/voice.dart';
+import '../services/supabase.dart';
 
 /// One captured product photo (1–3 allowed per listing).
 class _Photo {
@@ -57,6 +58,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   String _descEn = ''; // English version shown to buyers
   bool _descLocal = false; // true when _desc holds a non-English language
   bool _cutoutBusy = false;
+  bool _publishing = false;
   CatalogResult? _result;
   bool _busy = false;
 
@@ -338,9 +340,22 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       segments: [...r.b2cSegments, ...r.b2bSegments],
     );
     userProducts.add(product);
-    saveUserProduct(product);
-    _toast('Published — see it in Buyer ▸ Featured Products');
-    if (mounted) Navigator.of(context).pop();
+    saveUserProduct(product); // offline-first: always kept on device
+
+    var msg = 'Published — see it in Buyer ▸ Featured Products';
+    if (supabaseConfigured) {
+      setState(() => _publishing = true);
+      try {
+        await publishToSupabase(product);
+        msg = 'Published to the portal ✓';
+      } catch (_) {
+        msg = 'Saved on device — portal sync failed, will need a retry';
+      }
+      if (mounted) setState(() => _publishing = false);
+    }
+    if (!mounted) return;
+    _toast(msg);
+    Navigator.of(context).pop();
   }
 
   void _toast(String m) {
@@ -711,12 +726,18 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       SizedBox(
         width: double.infinity,
         child: FilledButton.icon(
-          onPressed: _publish,
+          onPressed: _publishing ? null : _publish,
           style: FilledButton.styleFrom(
               backgroundColor: AppColors.green,
               padding: const EdgeInsets.symmetric(vertical: 14)),
-          icon: const Icon(Icons.publish),
-          label: const Text('Publish to catalogue'),
+          icon: _publishing
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.publish),
+          label: Text(_publishing ? 'Publishing…' : 'Publish to catalogue'),
         ),
       ),
       const SizedBox(height: 24),
