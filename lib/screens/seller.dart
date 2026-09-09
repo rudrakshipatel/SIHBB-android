@@ -137,13 +137,21 @@ class SellerDashboard extends StatelessWidget {
       ])));
 }
 
+/// Top-right "Buyer" button to switch the whole app to the buyer experience.
+Widget _buyerSwitchButton(BuildContext context) => TextButton(
+      onPressed: () => Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const BuyerShell())),
+      child: const Text('Buyer',
+          style: TextStyle(color: AppColors.green, fontWeight: FontWeight.w700)),
+    );
+
 class _MyProducts extends StatelessWidget {
   const _MyProducts();
   @override
   Widget build(BuildContext context) {
     final mine = products.take(6).toList();
     return Column(children: [
-      AppBar(title: Text('My Products', style: serif(size: 17, color: AppColors.green)), automaticallyImplyLeading: false),
+      AppBar(title: Text('My Products', style: serif(size: 17, color: AppColors.green)), automaticallyImplyLeading: false, actions: [_buyerSwitchButton(context)]),
       Expanded(child: GridView.builder(padding: const EdgeInsets.all(16), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 0.72), itemCount: mine.length, itemBuilder: (_, i) => ProductCard(mine[i], onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProductDetail(mine[i])))))),
     ]);
   }
@@ -190,7 +198,7 @@ class _AddProduct extends StatelessWidget {
       (Icons.rocket_launch_outlined, 'Publish', 'Your product goes live to buyers across India'),
     ];
     return Column(children: [
-      AppBar(title: Text('Add Product', style: serif(size: 17, color: AppColors.green)), automaticallyImplyLeading: false),
+      AppBar(title: Text('Add Product', style: serif(size: 17, color: AppColors.green)), automaticallyImplyLeading: false, actions: [_buyerSwitchButton(context)]),
       Expanded(child: ListView(padding: const EdgeInsets.all(16), children: [
         Text('Turn your craft into a listing in under 90 seconds.', style: serif(size: 18, color: AppColors.green)),
         const SizedBox(height: 18),

@@ -10,7 +10,19 @@ class ProductDetail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(p.category.split(',').first, style: serif(size: 16, color: AppColors.green))),
+      appBar: AppBar(
+        title: Text(p.category.split(',').first, style: serif(size: 16, color: AppColors.green)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_shopping_cart_outlined),
+            tooltip: 'Add to cart',
+            onPressed: () {
+              if (!cart.any((x) => x.id == p.id)) cart.add(p);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Added to cart')));
+            },
+          ),
+        ],
+      ),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         ClipRRect(borderRadius: BorderRadius.circular(16), child: AspectRatio(aspectRatio: 4 / 3, child: ProductThumb(p, radius: 0))),
         const SizedBox(height: 16),

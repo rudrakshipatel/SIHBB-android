@@ -112,6 +112,17 @@ class ProductCard extends StatelessWidget {
             ProductThumb(p, radius: 0),
             if (p.b2bOnly)
               Positioned(left: 6, top: 6, child: _pill('B2B', AppColors.green)),
+            Positioned(right: 6, bottom: 6, child: GestureDetector(
+              onTap: () {
+                if (!cart.any((x) => x.id == p.id)) cart.add(p);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Added to cart'), duration: Duration(milliseconds: 900)));
+              },
+              child: Container(
+                decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle),
+                padding: const EdgeInsets.all(6),
+                child: const Icon(Icons.add_shopping_cart, size: 16, color: Colors.white),
+              ),
+            )),
           ])),
           Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),

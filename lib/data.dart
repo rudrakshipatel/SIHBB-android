@@ -60,6 +60,9 @@ class Product {
 /// resets when the app restarts, which is fine for the demo.
 final List<Product> userProducts = <Product>[];
 
+/// The buyer's in-session cart (in-memory).
+final List<Product> cart = <Product>[];
+
 /// Everything shown to buyers: freshly published listings first, then the seed
 /// catalogue.
 List<Product> get allProducts => [...userProducts.reversed, ...products];
