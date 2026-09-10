@@ -3,11 +3,13 @@ import 'theme.dart';
 import 'data.dart';
 import 'screens/landing.dart';
 import 'services/store.dart';
+import 'services/identity.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await initStore();
+    await loadIdentity();
     await loadUserProducts();
     // Seed the shared catalogue with this device's own listings so they show
     // offline; the buyer screen refreshes from Supabase to pull in everyone's.

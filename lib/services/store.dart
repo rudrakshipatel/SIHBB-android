@@ -15,22 +15,43 @@ Future<void> initStore() async {
   final path = '${await getDatabasesPath()}/hastakala.db';
   _db = await openDatabase(
     path,
-    version: 2,
-    onCreate: (db, _) => db.execute('''
-      CREATE TABLE products(
-        id TEXT PRIMARY KEY,
-        name TEXT, name_local TEXT, price INTEGER,
-        category TEXT, sub TEXT, artisan TEXT, location TEXT,
-        description TEXT, description_local TEXT, cultural TEXT,
-        materials TEXT, segments TEXT,
-        image BLOB, created_at INTEGER
-      )'''),
+    version: 3,
+    onCreate: (db, _) async {
+      await db.execute('''
+        CREATE TABLE products(
+          id TEXT PRIMARY KEY,
+          name TEXT, name_local TEXT, price INTEGER,
+          category TEXT, sub TEXT, artisan TEXT, location TEXT,
+          description TEXT, description_local TEXT, cultural TEXT,
+          materials TEXT, segments TEXT,
+          image BLOB, created_at INTEGER
+        )''');
+      await db.execute('CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT)');
+    },
     onUpgrade: (db, oldV, newV) async {
       if (oldV < 2) {
         await db.execute('ALTER TABLE products ADD COLUMN description_local TEXT');
       }
+      if (oldV < 3) {
+        await db.execute('CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT)');
+      }
     },
   );
+}
+
+/// Small key/value store for local settings (seller identity, etc.).
+Future<String?> getSetting(String key) async {
+  final db = _db;
+  if (db == null) return null;
+  final rows = await db.query('settings', where: 'key = ?', whereArgs: [key], limit: 1);
+  return rows.isEmpty ? null : rows.first['value'] as String?;
+}
+
+Future<void> setSetting(String key, String value) async {
+  final db = _db;
+  if (db == null) return;
+  await db.insert('settings', {'key': key, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace);
 }
 
 /// Loads persisted listings into the in-memory [userProducts] (oldest first,

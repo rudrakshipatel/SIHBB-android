@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../data.dart';
 import '../theme.dart';
+import 'identity.dart';
 
 /// Publishes listings to Supabase using the ANON key only (safe to ship in the
 /// client; access is governed by RLS). The service_role key must NEVER be
@@ -22,8 +23,39 @@ Map<String, String> get _authHeaders =>
 /// Uploads the photo to Storage and inserts the product (+ image) rows so the
 /// listing appears in the Supabase-backed catalogue. Throws on failure; the
 /// caller keeps the local (offline) copy regardless.
+/// Creates/updates this device's artisan (and its user) in Supabase so each
+/// installed app publishes as a distinct seller.
+Future<void> _ensureArtisan() async {
+  final id = identity;
+  if (id.artisanId.isEmpty) return;
+  final headers = {
+    ..._authHeaders,
+    'Content-Type': 'application/json',
+    'Prefer': 'resolution=merge-duplicates',
+  };
+  await http
+      .post(Uri.parse('$_url/rest/v1/users'),
+          headers: headers,
+          body: jsonEncode({'id': id.userId, 'role': 'artisan'}))
+      .timeout(const Duration(seconds: 30));
+  await http
+      .post(Uri.parse('$_url/rest/v1/artisans'),
+          headers: headers,
+          body: jsonEncode({
+            'id': id.artisanId,
+            'user_id': id.userId,
+            'display_name': id.name,
+            'slug': 'artisan-${id.artisanId.substring(0, 8)}',
+            'location_state': id.location,
+            'verification_status': 'verified',
+          }))
+      .timeout(const Duration(seconds: 30));
+}
+
 Future<void> publishToSupabase(Product p) async {
   if (!supabaseConfigured) return;
+  await _ensureArtisan();
+  final artisanId = identity.artisanId.isNotEmpty ? identity.artisanId : _artisanId;
   final sku = 'HK-${DateTime.now().millisecondsSinceEpoch}';
 
   // 1) Upload the primary photo to the public bucket.
@@ -57,7 +89,7 @@ Future<void> publishToSupabase(Product p) async {
           'Prefer': 'return=representation',
         },
         body: jsonEncode({
-          'artisan_id': _artisanId,
+          'artisan_id': artisanId,
           'sku': sku,
           'name_en': p.name,
           'name_local': p.nameLocal,

@@ -14,6 +14,7 @@ import '../services/ai_camera.dart';
 import '../services/store.dart';
 import '../services/voice.dart';
 import '../services/supabase.dart';
+import '../services/identity.dart';
 
 /// One captured product photo (1–3 allowed per listing).
 class _Photo {
@@ -99,11 +100,40 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
         : p.endsWith('.webp')
             ? 'image/webp'
             : 'image/jpeg';
+    final sharp = _computeSharpness(bytes);
     if (!mounted) return;
     setState(() {
-      _photos.add(_Photo(bytes, x.path, mt, sharpness: _computeSharpness(bytes)));
+      _photos.add(_Photo(bytes, x.path, mt, sharpness: sharp));
       _result = null; // photos changed → needs re-analysis
     });
+    if (sharp < _blurWarn) _showBlurDialog();
+  }
+
+  void _showBlurDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.blur_on, color: AppColors.terracotta, size: 30),
+        title: const Text('Photo looks blurry'),
+        content: const Text(
+            'For a clearer listing, please retake the photo in good lighting, '
+            'hold the phone steady, and keep the craft in focus.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Use anyway')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.terracotta),
+            onPressed: () {
+              Navigator.pop(ctx);
+              if (_photos.isNotEmpty) setState(() => _photos.removeLast());
+              _addFromCamera();
+            },
+            child: const Text('Retake'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _addFromCamera() async {
@@ -304,7 +334,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       mediaType: primary.mediaType,
       imagePath: primary.path,
       craftHint: ctx.isEmpty ? null : ctx,
-      location: 'Rekha Devi · Bhuj, Gujarat',
+      location: '${identity.name} · ${identity.location}',
       moreImages: _photos.skip(1).map((e) => e.bytes).toList(),
     );
     if (!mounted) return;
@@ -347,8 +377,8 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       price: price,
       category: r.category,
       sub: r.craftType,
-      artisan: 'Rekha Devi',
-      location: 'Bhuj, Gujarat',
+      artisan: identity.name,
+      location: identity.location,
       description: english,
       descriptionLocal: _descLocal ? localText : '',
       cultural: r.culturalContext,

@@ -6,6 +6,7 @@ import 'buyer.dart';
 import 'product_detail.dart';
 import 'pages.dart';
 import 'ai_camera.dart';
+import '../services/identity.dart';
 
 class SellerShell extends StatefulWidget {
   const SellerShell({super.key});
@@ -222,20 +223,52 @@ class _AddProduct extends StatelessWidget {
   }
 }
 
-class _SellerProfile extends StatelessWidget {
+class _SellerProfile extends StatefulWidget {
   const _SellerProfile();
   @override
+  State<_SellerProfile> createState() => _SellerProfileState();
+}
+
+class _SellerProfileState extends State<_SellerProfile> {
+  Future<void> _editShop() async {
+    final nameC = TextEditingController(text: identity.name);
+    final locC = TextEditingController(text: identity.location);
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Your shop details', style: serif(size: 17, color: AppColors.green)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: nameC, decoration: const InputDecoration(labelText: 'Your / shop name', border: OutlineInputBorder(), isDense: true)),
+          const SizedBox(height: 12),
+          TextField(controller: locC, decoration: const InputDecoration(labelText: 'Location (e.g. Bhuj, Gujarat)', border: OutlineInputBorder(), isDense: true)),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(style: FilledButton.styleFrom(backgroundColor: AppColors.green), onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (saved == true) {
+      await updateSellerProfile(name: nameC.text, location: locC.text);
+      if (mounted) setState(() {});
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final id = identity;
+    final initial = id.name.trim().isNotEmpty ? id.name.trim().substring(0, 1).toUpperCase() : 'A';
     return Column(children: [
       AppBar(title: Text('Profile', style: serif(size: 17, color: AppColors.green)), automaticallyImplyLeading: false),
       Expanded(child: ListView(padding: const EdgeInsets.all(16), children: [
         Panel(child: Row(children: [
-          const CircleAvatar(radius: 28, backgroundColor: AppColors.creamDeep, child: Text('R', style: TextStyle(color: AppColors.terracotta, fontWeight: FontWeight.w800, fontSize: 22))),
+          CircleAvatar(radius: 28, backgroundColor: AppColors.creamDeep, child: Text(initial, style: const TextStyle(color: AppColors.terracotta, fontWeight: FontWeight.w800, fontSize: 22))),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [const Text('Rekha Devi', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)), const SizedBox(width: 6), const Icon(Icons.verified, color: AppColors.greenSoft, size: 16)]),
-            const Text('Terracotta Artisan · Gorakhpur, UP', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+            Row(children: [Flexible(child: Text(id.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16))), const SizedBox(width: 6), const Icon(Icons.verified, color: AppColors.greenSoft, size: 16)]),
+            Text('Artisan · ${id.location}', style: const TextStyle(color: AppColors.muted, fontSize: 12)),
           ])),
+          IconButton(icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.muted), onPressed: _editShop),
         ])),
         const SizedBox(height: 12),
         _tile(context, Icons.chat_bubble_outline, 'Inquiries', const _Inquiries()),
