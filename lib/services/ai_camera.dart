@@ -41,7 +41,7 @@ const String _model =
 /// Gemini (preferred vision provider when its key is compiled in).
 const String _geminiKey = String.fromEnvironment('GEMINI_API_KEY');
 const String _geminiModel =
-    String.fromEnvironment('GEMINI_MODEL', defaultValue: 'gemini-3.6-flash');
+    String.fromEnvironment('GEMINI_MODEL', defaultValue: 'gemini-flash-lite-latest');
 
 /// True when any live cloud vision key was compiled in via --dart-define.
 bool get aiIsLive => _geminiKey.isNotEmpty || _apiKey.isNotEmpty;
@@ -334,8 +334,6 @@ Future<CatalogResult> _geminiVision(
             'responseMimeType': 'application/json',
             'responseSchema': _geminiSchema,
             'temperature': 0.4,
-            // Minimise "thinking" for a big speed-up on this structured task.
-            'thinkingConfig': {'thinkingLevel': 'low'},
           },
         }),
       )

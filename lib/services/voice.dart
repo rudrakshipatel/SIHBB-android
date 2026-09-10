@@ -10,7 +10,7 @@ import 'package:http/http.dart' as http;
 /// Gemini audio (works today with GEMINI_API_KEY, auto-detects the language).
 const String _geminiKey = String.fromEnvironment('GEMINI_API_KEY');
 const String _geminiModel =
-    String.fromEnvironment('GEMINI_MODEL', defaultValue: 'gemini-3.6-flash');
+    String.fromEnvironment('GEMINI_MODEL', defaultValue: 'gemini-flash-lite-latest');
 const String _bhashiniUser = String.fromEnvironment('BHASHINI_USER_ID');
 const String _bhashiniKey = String.fromEnvironment('BHASHINI_ULCA_API_KEY');
 
@@ -88,7 +88,6 @@ Future<VoiceResult> _geminiTranscribe(Uint8List audio, String mime) async {
             'responseMimeType': 'application/json',
             'responseSchema': schema,
             'temperature': 0.2,
-            'thinkingConfig': {'thinkingLevel': 'low'},
           },
         }),
       )
