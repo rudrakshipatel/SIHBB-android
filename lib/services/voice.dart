@@ -88,6 +88,7 @@ Future<VoiceResult> _geminiTranscribe(Uint8List audio, String mime) async {
             'responseMimeType': 'application/json',
             'responseSchema': schema,
             'temperature': 0.2,
+            'thinkingConfig': {'thinkingLevel': 'low'},
           },
         }),
       )

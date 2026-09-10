@@ -3,6 +3,25 @@ import 'dart:typed_data';
 
 import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
 import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
+
+/// Shrinks a photo before upload (max ~1024px, JPEG q80) so the request is
+/// small and fast. Returns the original bytes if decoding fails.
+Uint8List _downscaleForUpload(Uint8List bytes) {
+  try {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return bytes;
+    final longest = decoded.width >= decoded.height ? decoded.width : decoded.height;
+    final out = longest <= 1024
+        ? decoded
+        : img.copyResize(decoded,
+            width: decoded.width >= decoded.height ? 1024 : null,
+            height: decoded.height > decoded.width ? 1024 : null);
+    return Uint8List.fromList(img.encodeJpg(out, quality: 80));
+  } catch (_) {
+    return bytes;
+  }
+}
 
 /// AI product-cataloging from a photo. Provider-abstracted, mirroring the web
 /// app's ai.ts: a deterministic mock (default — works offline and drives
@@ -269,7 +288,7 @@ Future<CatalogResult> _geminiVision(
   String? location,
   List<Uint8List> moreImages,
 ) async {
-  final b64 = base64Encode(bytes);
+  final b64 = base64Encode(_downscaleForUpload(bytes));
   const sys =
       'You are a cataloging assistant for Indian artisan handicrafts. Look at '
       'the product photo and return a listing that matches the provided JSON '
@@ -297,14 +316,14 @@ Future<CatalogResult> _geminiVision(
               'role': 'user',
               'parts': [
                 {
-                  'inline_data': {'mime_type': mediaType, 'data': b64}
+                  'inline_data': {'mime_type': 'image/jpeg', 'data': b64}
                 },
                 // Additional angles of the same product (up to the caller's cap).
                 for (final extra in moreImages)
                   {
                     'inline_data': {
                       'mime_type': 'image/jpeg',
-                      'data': base64Encode(extra)
+                      'data': base64Encode(_downscaleForUpload(extra))
                     }
                   },
                 {'text': user},
@@ -315,6 +334,8 @@ Future<CatalogResult> _geminiVision(
             'responseMimeType': 'application/json',
             'responseSchema': _geminiSchema,
             'temperature': 0.4,
+            // Minimise "thinking" for a big speed-up on this structured task.
+            'thinkingConfig': {'thinkingLevel': 'low'},
           },
         }),
       )

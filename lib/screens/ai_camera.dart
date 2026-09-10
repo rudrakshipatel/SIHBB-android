@@ -335,7 +335,8 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       imagePath: primary.path,
       craftHint: ctx.isEmpty ? null : ctx,
       location: '${identity.name} · ${identity.location}',
-      moreImages: _photos.skip(1).map((e) => e.bytes).toList(),
+      // Send only the main photo for a faster analysis (the listing still
+      // keeps all photos).
     );
     if (!mounted) return;
     setState(() {
