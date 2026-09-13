@@ -69,11 +69,11 @@ class _Inquiries extends StatelessWidget {
           Row(children: [
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: i.type == 'B2B' ? const Color(0x1A22402E) : AppColors.creamDeep, borderRadius: BorderRadius.circular(6)), child: Text(i.type, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: i.type == 'B2B' ? AppColors.green : AppColors.terracotta))),
             const Spacer(),
-            Text(i.when, style: const TextStyle(color: AppColors.muted, fontSize: 11)),
+            Text(t(i.when), style: const TextStyle(color: AppColors.muted, fontSize: 11)),
           ]),
           const SizedBox(height: 6),
-          Text('${i.buyer} — ${i.title}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-          Text(i.meta, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+          Text('${t(i.buyer)} — ${t(i.title)}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          Text(t(i.meta), style: const TextStyle(color: AppColors.muted, fontSize: 12)),
           const SizedBox(height: 10),
           Row(children: [
             Expanded(child: OutlinedButton(onPressed: () => _snack(context, 'Reply sent'), style: OutlinedButton.styleFrom(foregroundColor: AppColors.green, side: const BorderSide(color: AppColors.green)), child: Text(t('Reply')))),
@@ -85,7 +85,7 @@ class _Inquiries extends StatelessWidget {
     ));
   }
 
-  void _snack(BuildContext c, String m) => ScaffoldMessenger.of(c).showSnackBar(SnackBar(content: Text(m)));
+  void _snack(BuildContext c, String m) => ScaffoldMessenger.of(c).showSnackBar(SnackBar(content: Text(t(m))));
 }
 
 class _AddProduct extends StatelessWidget {

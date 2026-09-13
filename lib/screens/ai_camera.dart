@@ -15,6 +15,7 @@ import '../services/store.dart';
 import '../services/voice.dart';
 import '../services/supabase.dart';
 import '../services/identity.dart';
+import '../services/i18n.dart';
 
 /// One captured product photo (1–3 allowed per listing).
 class _Photo {
@@ -114,14 +115,13 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.blur_on, color: AppColors.terracotta, size: 30),
-        title: const Text('Photo looks blurry'),
-        content: const Text(
-            'For a clearer listing, please retake the photo in good lighting, '
-            'hold the phone steady, and keep the craft in focus.'),
+        title: Text(t('Photo looks blurry')),
+        content: Text(t(
+            'For a clearer listing, please retake the photo in good lighting, hold the phone steady, and keep the craft in focus.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Use anyway')),
+              child: Text(t('Use anyway'))),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.terracotta),
             onPressed: () {
@@ -129,7 +129,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
               if (_photos.isNotEmpty) setState(() => _photos.removeLast());
               _addFromCamera();
             },
-            child: const Text('Retake'),
+            child: Text(t('Retake')),
           ),
         ],
       ),
@@ -410,7 +410,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
 
   void _toast(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t(m))));
   }
 
   // ---------------- UI ----------------
@@ -419,10 +419,10 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   Widget build(BuildContext context) {
     final r = _result;
     final full = _photos.length >= _maxPhotos;
-    return Scaffold(
+    return Localized((context) => Scaffold(
       appBar: AppBar(
           title:
-              Text('AI Camera', style: serif(size: 17, color: AppColors.green))),
+              Text(t('AI Camera'), style: serif(size: 17, color: AppColors.green))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         _providerBadge(),
         const SizedBox(height: 12),
@@ -433,13 +433,13 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
               child: OutlinedButton.icon(
                   onPressed: (_busy || full) ? null : _addFromCamera,
                   icon: const Icon(Icons.camera_alt_outlined),
-                  label: const Text('Take photo'))),
+                  label: Text(t('Take photo')))),
           const SizedBox(width: 10),
           Expanded(
               child: OutlinedButton.icon(
                   onPressed: (_busy || full) ? null : _addFromGallery,
                   icon: const Icon(Icons.photo_library_outlined),
-                  label: const Text('Gallery'))),
+                  label: Text(t('Gallery')))),
         ]),
         if (_primary != null) ...[
           const SizedBox(height: 10),
@@ -458,10 +458,10 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
                       ? Icons.check
                       : Icons.auto_fix_high, size: 18),
               label: Text(_cutoutBusy
-                  ? 'Removing background…'
+                  ? t('Removing background…')
                   : (_primary?.cutout ?? false)
-                      ? 'Background removed'
-                      : 'Remove background — main photo'),
+                      ? t('Background removed')
+                      : t('Remove background — main photo')),
             ),
           ),
         ],
@@ -488,7 +488,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: Colors.white))
                 : const Icon(Icons.auto_awesome),
-            label: Text(_busy ? 'Analysing…' : 'Analyse with AI'),
+            label: Text(_busy ? t('Analysing…') : t('Analyse with AI')),
           ),
         ),
         if (r != null) ...[
@@ -496,7 +496,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
           _resultCard(r),
         ],
       ]),
-    );
+    ));
   }
 
   Widget _photoStrip() {
@@ -509,18 +509,18 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.line),
           ),
-          child: const Center(
+          child: Center(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.add_a_photo_outlined, size: 40, color: AppColors.muted),
-            SizedBox(height: 8),
-            Text('Add 1–3 photos of your craft',
-                style: TextStyle(color: AppColors.muted, fontSize: 12)),
+            const Icon(Icons.add_a_photo_outlined, size: 40, color: AppColors.muted),
+            const SizedBox(height: 8),
+            Text(t('Add 1–3 photos of your craft'),
+                style: const TextStyle(color: AppColors.muted, fontSize: 12)),
           ])),
         ),
       );
     }
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Photos (${_photos.length}/$_maxPhotos)',
+      Text('${t('Photos')} (${_photos.length}/$_maxPhotos)',
           style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
       const SizedBox(height: 6),
       SizedBox(
@@ -550,7 +550,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
           Positioned(
             left: 6,
             top: 6,
-            child: _tag('Main', AppColors.green),
+            child: _tag(t('Main'), AppColors.green),
           ),
         Positioned(
           right: 4,
@@ -577,9 +577,9 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
                     BorderRadius.vertical(bottom: Radius.circular(12)),
               ),
               padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 5),
-              child: const Text('blurry',
+              child: Text(t('blurry'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                       color: Colors.white,
                       fontSize: 10,
                       fontWeight: FontWeight.w700)),
@@ -604,7 +604,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
           const Icon(Icons.translate, size: 14, color: AppColors.greenSoft),
           const SizedBox(width: 6),
           Expanded(
-            child: Text('Buyers will see (English): $_descEn',
+            child: Text('${t('Buyers will see (English)')}: $_descEn',
                 style: const TextStyle(
                     fontSize: 11.5,
                     color: AppColors.muted,
@@ -631,10 +631,10 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
                 child: CircularProgressIndicator(strokeWidth: 2))
             : Icon(recording ? Icons.stop_circle : Icons.mic, size: 18),
         label: Text(_transcribing
-            ? 'Transcribing…'
+            ? t('Transcribing…')
             : recording
-                ? 'Stop & transcribe'
-                : 'Describe by voice ($voiceEngineLabel)'),
+                ? t('Stop & transcribe')
+                : '${t('Describe by voice')} ($voiceEngineLabel)'),
       ),
     );
   }
@@ -650,7 +650,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
           Row(children: [
             const Icon(Icons.graphic_eq, size: 15, color: AppColors.green),
             const SizedBox(width: 6),
-            Text('Heard (${v.language})',
+            Text('${t('Heard')} (${v.language})',
                 style: serif(size: 13, color: AppColors.green)),
           ]),
           const SizedBox(height: 4),
@@ -672,7 +672,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
             size: 16, color: live ? AppColors.greenSoft : AppColors.muted),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(live ? 'Live AI: $aiModelLabel' : 'On-device AI (offline)',
+          child: Text(live ? '${t('Live AI')}: $aiModelLabel' : t('On-device AI (offline)'),
               style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
         ),
       ]),
@@ -682,15 +682,15 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   Widget _resultCard(CatalogResult r) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Text('AI draft listing', style: serif(size: 18, color: AppColors.green)),
+        Text(t('AI draft listing'), style: serif(size: 18, color: AppColors.green)),
         const Spacer(),
         _confidencePill(r.confidence),
       ]),
       const SizedBox(height: 4),
-      Text('${r.craftType} · ${r.category}',
+      Text('${t(r.craftType)} · ${t(r.category)}',
           style: const TextStyle(fontSize: 12, color: AppColors.muted)),
       const SizedBox(height: 2),
-      Text('Analysed by ${r.provider}',
+      Text('${t('Analysed by')} ${r.provider}',
           style: const TextStyle(
               fontSize: 11,
               color: AppColors.greenSoft,
@@ -699,7 +699,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       if (r.fieldsRequiringConfirmation.isNotEmpty) _confirmBanner(r),
       Panel(child: _field('Product name', _name)),
       const SizedBox(height: 14),
-      Text('A few questions to price it fairly',
+      Text(t('A few questions to price it fairly'),
           style: serif(size: 15, color: AppColors.green)),
       const SizedBox(height: 8),
       Panel(
@@ -735,7 +735,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
               Row(children: [
                 const Icon(Icons.sell_outlined, size: 16, color: AppColors.green),
                 const SizedBox(width: 6),
-                Text('Suggested price',
+                Text(t('Suggested price'),
                     style: serif(size: 14, color: AppColors.green)),
                 const Spacer(),
                 TextButton(
@@ -744,8 +744,8 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                    child: const Text('Recalculate',
-                        style: TextStyle(fontSize: 11))),
+                    child: Text(t('Recalculate'),
+                        style: const TextStyle(fontSize: 11))),
               ]),
               const SizedBox(height: 8),
               _field('Price (₹) — edit if needed', _price, number: true),
@@ -767,9 +767,9 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       ),
       if (r.culturalContext.isNotEmpty) ...[
         const SizedBox(height: 12),
-        Text('Cultural context', style: serif(size: 14, color: AppColors.green)),
+        Text(t('Cultural context'), style: serif(size: 14, color: AppColors.green)),
         const SizedBox(height: 4),
-        Text(r.culturalContext,
+        Text(t(r.culturalContext),
             style: const TextStyle(fontSize: 12.5, height: 1.35)),
       ],
       const SizedBox(height: 18),
@@ -787,7 +787,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: Colors.white))
               : const Icon(Icons.publish),
-          label: Text(_publishing ? 'Publishing…' : 'Publish to catalogue'),
+          label: Text(_publishing ? t('Publishing…') : t('Publish to catalogue')),
         ),
       ),
       const SizedBox(height: 24),
@@ -808,7 +808,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-                'Please double-check: ${r.fieldsRequiringConfirmation.join(', ')}',
+                '${t('Please double-check')}: ${r.fieldsRequiringConfirmation.map(t).join(', ')}',
                 style: const TextStyle(
                     fontSize: 12, color: AppColors.terracotta, height: 1.3)),
           ),
@@ -824,7 +824,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
         color: good ? const Color(0xFFE7F0EA) : const Color(0xFFFBF1E6),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text('$pct% confident',
+      child: Text('$pct% ${t('confident')}',
           style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -842,7 +842,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
         decoration: InputDecoration(
           isDense: true,
           border: const OutlineInputBorder(),
-          labelText: label,
+          labelText: t(label),
         ),
       );
 
@@ -853,9 +853,9 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
               style: const TextStyle(fontSize: 12.5, color: AppColors.ink),
               children: [
                 TextSpan(
-                    text: '$k: ',
+                    text: '${t(k)}: ',
                     style: const TextStyle(fontWeight: FontWeight.w700)),
-                TextSpan(text: v),
+                TextSpan(text: t(v)),
               ]),
         ),
       );
@@ -865,7 +865,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: serif(size: 14, color: AppColors.green)),
+        Text(t(label), style: serif(size: 14, color: AppColors.green)),
         const SizedBox(height: 6),
         Wrap(spacing: 6, runSpacing: 6, children: [
           for (final it in items)
@@ -876,7 +876,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: AppColors.line),
               ),
-              child: Text(it, style: const TextStyle(fontSize: 11.5)),
+              child: Text(t(it), style: const TextStyle(fontSize: 11.5)),
             ),
         ]),
       ]),

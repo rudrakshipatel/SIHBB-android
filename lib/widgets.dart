@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'data.dart';
+import 'services/i18n.dart';
 
 class BrandLogo extends StatelessWidget {
   final bool dark;
@@ -61,7 +62,7 @@ class CategoryTile extends StatelessWidget {
           child: Image.asset(category.image, fit: BoxFit.cover),
         ),
         const SizedBox(height: 6),
-        SizedBox(width: diameter + 24, child: Text(category.name, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: AppColors.muted, height: 1.15))),
+        SizedBox(width: diameter + 24, child: Text(t(category.name), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: AppColors.muted, height: 1.15))),
       ]),
     );
   }
@@ -127,7 +128,7 @@ class ProductCard extends StatelessWidget {
             Positioned(right: 6, bottom: 6, child: GestureDetector(
               onTap: () {
                 if (!cart.any((x) => x.id == p.id)) cart.add(p);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Added to cart'), duration: Duration(milliseconds: 900)));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('Added to cart')), duration: const Duration(milliseconds: 900)));
               },
               child: Container(
                 decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle),
@@ -137,9 +138,9 @@ class ProductCard extends StatelessWidget {
             )),
           ])),
           Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+            Text(t(p.name), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
             const SizedBox(height: 2),
-            Text('${p.artisan} · ${p.location.split(',').last.trim()}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, color: AppColors.muted)),
+            Text('${t(p.artisan)} · ${t(p.location.split(',').last.trim())}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, color: AppColors.muted)),
             const SizedBox(height: 6),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Flexible(child: Text(p.priceLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.terracotta, fontWeight: FontWeight.w800, fontSize: 13))),
