@@ -5,7 +5,9 @@ import '../widgets.dart';
 import 'product_detail.dart';
 import 'seller.dart';
 import 'pages.dart';
+import 'language.dart';
 import '../services/supabase.dart';
+import '../services/i18n.dart';
 
 class BuyerShell extends StatefulWidget {
   final String? initialCategory;
@@ -35,7 +37,7 @@ class _BuyerShellState extends State<BuyerShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [const BuyerHome(), const CartScreen(), const _BuyerProfile()];
-    return Scaffold(
+    return Localized((context) => Scaffold(
       body: SafeArea(bottom: false, child: pages[_tab]),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
@@ -43,10 +45,10 @@ class _BuyerShellState extends State<BuyerShell> {
         backgroundColor: Colors.white,
         indicatorColor: AppColors.creamDeep,
         destinations: [
-          const NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home'),
+          NavigationDestination(
+              icon: const Icon(Icons.home_outlined),
+              selectedIcon: const Icon(Icons.home),
+              label: t('Home')),
           NavigationDestination(
               icon: Badge(
                 isLabelVisible: cart.isNotEmpty,
@@ -54,14 +56,14 @@ class _BuyerShellState extends State<BuyerShell> {
                 child: const Icon(Icons.shopping_cart_outlined),
               ),
               selectedIcon: const Icon(Icons.shopping_cart),
-              label: 'Cart'),
-          const NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'Account'),
+              label: t('Cart')),
+          NavigationDestination(
+              icon: const Icon(Icons.person_outline),
+              selectedIcon: const Icon(Icons.person),
+              label: t('Account')),
         ],
       ),
-    );
+    ));
   }
 }
 
@@ -92,7 +94,7 @@ class _BuyerHomeState extends State<BuyerHome> {
   @override
   Widget build(BuildContext context) {
     final featured = allProducts.take(6).toList();
-    return RefreshIndicator(
+    return Localized((context) => RefreshIndicator(
       onRefresh: _load,
       child: CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), slivers: [
       SliverAppBar(
@@ -104,8 +106,8 @@ class _BuyerHomeState extends State<BuyerHome> {
           TextButton(
               onPressed: () => Navigator.pushReplacement(context,
                   MaterialPageRoute(builder: (_) => const SellerShell())),
-              child: const Text('Seller',
-                  style: TextStyle(
+              child: Text(t('Seller'),
+                  style: const TextStyle(
                       color: AppColors.terracotta, fontWeight: FontWeight.w700)))
         ],
       ),
@@ -113,7 +115,7 @@ class _BuyerHomeState extends State<BuyerHome> {
           child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const SectionHeader('Shop by Category'),
+                SectionHeader(t('Shop by Category')),
                 SizedBox(
                     height: 108,
                     child: ListView.separated(
@@ -127,8 +129,8 @@ class _BuyerHomeState extends State<BuyerHome> {
                                     builder: (_) =>
                                         SubcategoryScreen(categories[i])))))),
                 const SizedBox(height: 22),
-                SectionHeader('Featured Products',
-                    action: 'View all', onAction: () => _browse(context)),
+                SectionHeader(t('Featured Products'),
+                    action: t('View all'), onAction: () => _browse(context)),
               ]))),
       SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -144,7 +146,7 @@ class _BuyerHomeState extends State<BuyerHome> {
                 childCount: featured.length),
           )),
       const SliverToBoxAdapter(child: SizedBox(height: 24)),
-    ]));
+    ])));
   }
 }
 
@@ -177,9 +179,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final items = _category == null
         ? allProducts
         : allProducts.where((p) => p.category == _category).toList();
-    return Scaffold(
+    return Localized((context) => Scaffold(
       appBar: AppBar(
-          title: Text(_category ?? 'All Products',
+          title: Text(_category ?? t('All Products'),
               style: serif(size: 17, color: AppColors.green))),
       body: Column(children: [
         SizedBox(
@@ -188,7 +190,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 children: [
-                  _chip('All', _category == null, () => setState(() => _category = null)),
+                  _chip(t('All'), _category == null, () => setState(() => _category = null)),
                   for (final c in categories)
                     _chip(c.name.split(',').first, _category == c.name,
                         () => setState(() => _category = c.name)),
@@ -197,12 +199,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
             child: RefreshIndicator(
                 onRefresh: _load,
                 child: items.isEmpty
-                    ? ListView(physics: const AlwaysScrollableScrollPhysics(), children: const [
+                    ? ListView(physics: const AlwaysScrollableScrollPhysics(), children: [
                         Padding(
-                            padding: EdgeInsets.only(top: 100),
+                            padding: const EdgeInsets.only(top: 100),
                             child: Center(
-                                child: Text('No products in this category yet.',
-                                    style: TextStyle(color: AppColors.muted))))
+                                child: Text(t('No products in this category yet.'),
+                                    style: const TextStyle(color: AppColors.muted))))
                       ])
                     : GridView.builder(
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -219,7 +221,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 MaterialPageRoute(builder: (_) => ProductDetail(items[i])))),
                       ))),
       ]),
-    );
+    ));
   }
 
   Widget _chip(String label, bool active, VoidCallback onTap) => Padding(
@@ -246,21 +248,21 @@ class _CartScreenState extends State<CartScreen> {
   @override
   Widget build(BuildContext context) {
     final total = cart.fold<int>(0, (s, p) => s + p.price);
-    return Column(children: [
+    return Localized((context) => Column(children: [
       AppBar(
-          title: Text('Cart', style: serif(size: 17, color: AppColors.green)),
+          title: Text(t('Cart'), style: serif(size: 17, color: AppColors.green)),
           automaticallyImplyLeading: false),
       Expanded(
         child: cart.isEmpty
-            ? const Center(
+            ? Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.shopping_cart_outlined, size: 44, color: AppColors.muted),
-                SizedBox(height: 10),
-                Text('Your cart is empty',
-                    style: TextStyle(color: AppColors.muted)),
-                SizedBox(height: 4),
-                Text('Add products from the catalogue',
-                    style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                const Icon(Icons.shopping_cart_outlined, size: 44, color: AppColors.muted),
+                const SizedBox(height: 10),
+                Text(t('Your cart is empty'),
+                    style: const TextStyle(color: AppColors.muted)),
+                const SizedBox(height: 4),
+                Text(t('Add products from the catalogue'),
+                    style: const TextStyle(color: AppColors.muted, fontSize: 12)),
               ]))
             : ListView.builder(
                 padding: const EdgeInsets.all(16),
@@ -313,8 +315,8 @@ class _CartScreenState extends State<CartScreen> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
           child: Row(children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Total (approx.)',
-                  style: TextStyle(color: AppColors.muted, fontSize: 11)),
+              Text(t('Total (approx.)'),
+                  style: const TextStyle(color: AppColors.muted, fontSize: 11)),
               Text(rupee(total),
                   style: serif(size: 20, color: AppColors.green)),
             ]),
@@ -330,11 +332,11 @@ class _CartScreenState extends State<CartScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text('Inquiry sent for $n item(s)')));
               },
-              child: const Text('Send inquiry'),
+              child: Text(t('Send inquiry')),
             ),
           ]),
         ),
-    ]);
+    ]));
   }
 }
 
@@ -342,9 +344,9 @@ class _BuyerProfile extends StatelessWidget {
   const _BuyerProfile();
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
+    return Localized((context) => Column(children: [
       AppBar(
-          title: Text('Account', style: serif(size: 17, color: AppColors.green)),
+          title: Text(t('Account'), style: serif(size: 17, color: AppColors.green)),
           automaticallyImplyLeading: false),
       Expanded(
           child: ListView(padding: const EdgeInsets.all(16), children: [
@@ -366,15 +368,16 @@ class _BuyerProfile extends StatelessWidget {
           ]),
         ])),
         const SizedBox(height: 12),
-        _nav(context, Icons.favorite_border, 'Saved items', const SavedScreen()),
-        _nav(context, Icons.receipt_long_outlined, 'My inquiries',
+        _nav(context, Icons.language, t('Language'), const LanguageScreen()),
+        _nav(context, Icons.favorite_border, t('Saved items'), const SavedScreen()),
+        _nav(context, Icons.receipt_long_outlined, t('My inquiries'),
             const MyInquiriesScreen()),
-        _nav(context, Icons.help_outline, 'Help & Support', const HelpScreen()),
-        _action(context, Icons.storefront_outlined, 'Switch to Seller',
+        _nav(context, Icons.help_outline, t('Help & Support'), const HelpScreen()),
+        _action(context, Icons.storefront_outlined, t('Switch to Seller'),
             () => Navigator.pushReplacement(context,
                 MaterialPageRoute(builder: (_) => const SellerShell()))),
       ])),
-    ]);
+    ]));
   }
 
   Widget _nav(BuildContext context, IconData icon, String label, Widget page) =>
