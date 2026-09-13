@@ -23,35 +23,21 @@ Uint8List _downscaleForUpload(Uint8List bytes) {
   }
 }
 
-/// AI product-cataloging from a photo. Provider-abstracted, mirroring the web
-/// app's ai.ts: a deterministic mock (default — works offline and drives
-/// reliable demos) and a Claude vision adapter enabled by an --dart-define'd
-/// ANTHROPIC_API_KEY. Model output is always coerced into [CatalogResult]
-/// before it reaches the UI, and a failed live call falls back to the mock so
-/// a demo never dead-ends.
-///
-/// Build with the live model like this (the key is never hardcoded in source):
-///   flutter run --dart-define=ANTHROPIC_API_KEY=sk-ant-...
-///   flutter build apk --debug --dart-define=ANTHROPIC_API_KEY=sk-ant-... \
-///       --dart-define=AI_MODEL=claude-sonnet-5
-const String _apiKey = String.fromEnvironment('ANTHROPIC_API_KEY');
-const String _model =
-    String.fromEnvironment('AI_MODEL', defaultValue: 'claude-opus-5');
-
-/// Gemini (preferred vision provider when its key is compiled in).
+/// AI product-cataloging from a photo. Provider-abstracted: Gemini vision when
+/// a GEMINI_API_KEY is compiled in (via --dart-define-from-file=secrets.json),
+/// on-device Google ML Kit labeling as an offline fallback, and a deterministic
+/// mock as the last resort. Output is always coerced into [CatalogResult].
 const String _geminiKey = String.fromEnvironment('GEMINI_API_KEY');
 const String _geminiModel =
     String.fromEnvironment('GEMINI_MODEL', defaultValue: 'gemini-flash-lite-latest');
 
-/// True when any live cloud vision key was compiled in via --dart-define.
-bool get aiIsLive => _geminiKey.isNotEmpty || _apiKey.isNotEmpty;
+/// True when a live Gemini key was compiled in via --dart-define.
+bool get aiIsLive => _geminiKey.isNotEmpty;
 
 /// The engine in use (for display).
 String get aiModelLabel => _geminiKey.isNotEmpty
     ? 'Gemini · $_geminiModel'
-    : _apiKey.isNotEmpty
-        ? 'Claude vision · $_model'
-        : 'On-device AI · Google ML Kit (offline, no key)';
+    : 'On-device AI · Google ML Kit (offline, no key)';
 
 /// Craft categories the model must classify into (also the Gemini enum).
 const List<String> kCraftCategories = [
@@ -81,7 +67,7 @@ class CatalogResult {
   final double confidence;
   final List<String> fieldsRequiringConfirmation;
 
-  /// 'claude' for a live vision result, 'mock-v1' for the offline demo.
+  /// 'gemini', 'on-device (ML Kit)', or 'mock-v1' — which engine produced this.
   final String provider;
 
   const CatalogResult({
@@ -139,24 +125,14 @@ class CatalogResult {
 /// Falls back to the deterministic mock on any live-call failure.
 Future<CatalogResult> generateCatalogFromPhoto(
   Uint8List bytes, {
-  String mediaType = 'image/jpeg',
   String? imagePath,
   String? craftHint,
   String? location,
-  List<Uint8List> moreImages = const [],
 }) async {
   // 1) Gemini vision (preferred) when its key was compiled in.
   if (_geminiKey.isNotEmpty) {
     try {
-      return await _geminiVision(bytes, mediaType, craftHint, location, moreImages);
-    } catch (_) {
-      // fall through
-    }
-  }
-  // 2) Claude vision when an Anthropic key was compiled in.
-  if (_apiKey.isNotEmpty) {
-    try {
-      return await _claudeVision(bytes, mediaType, craftHint, location);
+      return await _geminiVision(bytes, craftHint, location);
     } catch (_) {
       // fall through to on-device / mock so a demo never dead-ends
     }
@@ -283,10 +259,8 @@ const Map<String, dynamic> _geminiSchema = {
 
 Future<CatalogResult> _geminiVision(
   Uint8List bytes,
-  String mediaType,
   String? craftHint,
   String? location,
-  List<Uint8List> moreImages,
 ) async {
   final b64 = base64Encode(_downscaleForUpload(bytes));
   const sys =
@@ -318,14 +292,6 @@ Future<CatalogResult> _geminiVision(
                 {
                   'inline_data': {'mime_type': 'image/jpeg', 'data': b64}
                 },
-                // Additional angles of the same product (up to the caller's cap).
-                for (final extra in moreImages)
-                  {
-                    'inline_data': {
-                      'mime_type': 'image/jpeg',
-                      'data': base64Encode(_downscaleForUpload(extra))
-                    }
-                  },
                 {'text': user},
               ],
             }
@@ -355,84 +321,6 @@ Future<CatalogResult> _geminiVision(
   }
   final raw = jsonDecode(text.substring(start, end + 1)) as Map<String, dynamic>;
   return CatalogResult.fromJson(raw, provider: 'gemini');
-}
-
-// ---------------- Claude vision provider ----------------
-
-Future<CatalogResult> _claudeVision(
-  Uint8List bytes,
-  String mediaType,
-  String? craftHint,
-  String? location,
-) async {
-  final b64 = base64Encode(bytes);
-  const sys =
-      'You are a cataloging assistant for Indian artisan handicrafts. Look at '
-      'the product photo and return ONLY a JSON object (no prose, no markdown '
-      'fences) matching the requested schema. Never invent facts you cannot '
-      'see in the image; if unsure about a field, include its name in '
-      'fields_requiring_confirmation.';
-  final user =
-      'Identify this handmade craft from the photo and draft a marketplace '
-      'listing for an Indian artisan.\n'
-      'Craft hint (may be empty): ${craftHint ?? 'unknown'}\n'
-      'Artisan location: ${location ?? 'unknown'}\n'
-      'Return a JSON object with keys: product_name, category, craft_type, '
-      'materials (array), colors (array), description, cultural_context, '
-      'name_local (a short name in Hindi/Devanagari), price_min (fair INR '
-      'integer), price_max (INR integer), tags (array), target_b2c_segments '
-      '(array), target_b2b_segments (array), recommended_markets (array), '
-      'confidence (0..1), fields_requiring_confirmation (array of key names).';
-
-  final res = await http
-      .post(
-        Uri.parse('https://api.anthropic.com/v1/messages'),
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': _apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: jsonEncode({
-          'model': _model,
-          'max_tokens': 1200,
-          'output_config': {'effort': 'low'},
-          'system': sys,
-          'messages': [
-            {
-              'role': 'user',
-              'content': [
-                {
-                  'type': 'image',
-                  'source': {
-                    'type': 'base64',
-                    'media_type': mediaType,
-                    'data': b64,
-                  },
-                },
-                {'type': 'text', 'text': user},
-              ],
-            },
-          ],
-        }),
-      )
-      .timeout(const Duration(seconds: 60));
-
-  if (res.statusCode != 200) {
-    throw Exception('Anthropic API ${res.statusCode}: ${res.body}');
-  }
-  final data = jsonDecode(res.body) as Map<String, dynamic>;
-  final blocks = (data['content'] as List?) ?? const [];
-  final text = blocks
-      .where((b) => b is Map && b['type'] == 'text')
-      .map((b) => b['text'].toString())
-      .join();
-  final start = text.indexOf('{');
-  final end = text.lastIndexOf('}');
-  if (start < 0 || end <= start) {
-    throw const FormatException('No JSON object in model response');
-  }
-  final raw = jsonDecode(text.substring(start, end + 1)) as Map<String, dynamic>;
-  return CatalogResult.fromJson(raw, provider: 'claude');
 }
 
 // ---------------- Mock provider (deterministic, offline) ----------------

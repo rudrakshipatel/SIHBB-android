@@ -331,7 +331,6 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
     final ctx = _descLocal && _descEn.isNotEmpty ? _descEn : _desc.text.trim();
     final r = await generateCatalogFromPhoto(
       primary.bytes,
-      mediaType: primary.mediaType,
       imagePath: primary.path,
       craftHint: ctx.isEmpty ? null : ctx,
       location: '${identity.name} · ${identity.location}',

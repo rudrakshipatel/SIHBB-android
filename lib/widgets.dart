@@ -157,68 +157,6 @@ Widget _pill(String text, Color color) => Container(
       child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
     );
 
-class Sparkline extends StatelessWidget {
-  final List<double> data;
-  final Color color;
-  const Sparkline(this.data, {super.key, this.color = AppColors.greenSoft});
-  @override
-  Widget build(BuildContext context) => SizedBox(height: 26, child: CustomPaint(size: Size.infinite, painter: _SparkPainter(data, color)));
-}
-
-class _SparkPainter extends CustomPainter {
-  final List<double> data;
-  final Color color;
-  _SparkPainter(this.data, this.color);
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (data.isEmpty) return;
-    final maxV = data.reduce((a, b) => a > b ? a : b);
-    final path = Path();
-    for (var i = 0; i < data.length; i++) {
-      final x = i / (data.length - 1) * size.width;
-      final y = size.height - (data[i] / (maxV == 0 ? 1 : maxV)) * (size.height - 3) - 2;
-      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
-    }
-    canvas.drawPath(path, Paint()..color = color..strokeWidth = 2..style = PaintingStyle.stroke..strokeJoin = StrokeJoin.round..strokeCap = StrokeCap.round);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SparkPainter old) => old.data != data;
-}
-
-class ProfileRing extends StatelessWidget {
-  final int pct;
-  const ProfileRing(this.pct, {super.key});
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 84, height: 84,
-      child: Stack(alignment: Alignment.center, children: [
-        SizedBox(width: 84, height: 84, child: CustomPaint(painter: _RingPainter(pct))),
-        Text('$pct%', style: serif(size: 20, color: AppColors.green)),
-      ]),
-    );
-  }
-}
-
-class _RingPainter extends CustomPainter {
-  final int pct;
-  _RingPainter(this.pct);
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = size.width / 2 - 6;
-    final bg = Paint()..color = const Color(0xFFE7E2D4)..strokeWidth = 9..style = PaintingStyle.stroke..strokeCap = StrokeCap.round;
-    final fg = Paint()..color = AppColors.green..strokeWidth = 9..style = PaintingStyle.stroke..strokeCap = StrokeCap.round;
-    canvas.drawCircle(center, radius, bg);
-    final sweep = 6.28318 * (pct / 100);
-    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), -1.5708, sweep, false, fg);
-  }
-
-  @override
-  bool shouldRepaint(covariant _RingPainter old) => old.pct != pct;
-}
-
 /// A card wrapper with padding.
 class Panel extends StatelessWidget {
   final Widget child;
