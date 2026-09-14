@@ -43,7 +43,10 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   final _picker = ImagePicker();
   final _name = TextEditingController();
   final _desc = TextEditingController(); // artisan's description (their language)
-  final _price = TextEditingController(); // AI competitor-based price (editable)
+  final _base = TextEditingController(); // seller base price (seeded from AI)
+  final _overhead = TextEditingController(); // overhead cost (₹)
+  final _margin = TextEditingController(); // margin (%)
+  final _price = TextEditingController(); // final price (editable)
   final _tags = TextEditingController();
 
   final List<_Photo> _photos = [];
@@ -68,10 +71,23 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   void dispose() {
     _name.dispose();
     _desc.dispose();
+    _base.dispose();
+    _overhead.dispose();
+    _margin.dispose();
     _price.dispose();
     _tags.dispose();
     _recorder.dispose();
     super.dispose();
+  }
+
+  /// Final price = (base + overhead) × (1 + margin%). Rounded to ₹10.
+  void _recalcFinal() {
+    final base = double.tryParse(_base.text.trim()) ?? 0;
+    final over = double.tryParse(_overhead.text.trim()) ?? 0;
+    final margin = double.tryParse(_margin.text.trim()) ?? 0;
+    final total = (base + over) * (1 + margin / 100);
+    final rounded = (total / 10).round() * 10;
+    setState(() => _price.text = rounded.toString());
   }
 
   // ---------------- Photos (1–3) ----------------
@@ -310,11 +326,13 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       _busy = false;
       _name.text = r.productName;
       _tags.text = r.tags.map((t) => '#${t.replaceAll(' ', '')}').join(' ');
-      // Competitor-based price from the AI (editable).
+      // Competitor-based price from the AI seeds the base; final = base
+      // until the seller adds overhead/margin.
       final sp = r.suggestedPrice ??
           ((r.priceMin != null && r.priceMax != null)
               ? ((r.priceMin! + r.priceMax!) / 2).round()
               : 1000);
+      _base.text = sp.toString();
       _price.text = sp.toString();
       if (_descLocal) {
         // Keep the artisan's own-language description; use the AI's English
@@ -390,8 +408,6 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
           title:
               Text(t('AI Camera'), style: serif(size: 17, color: AppColors.green))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        _providerBadge(),
-        const SizedBox(height: 12),
         _photoStrip(),
         const SizedBox(height: 12),
         Row(children: [
@@ -624,27 +640,6 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
         ]),
       );
 
-  Widget _providerBadge() {
-    final live = aiIsLive;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: live ? AppColors.creamDeep : const Color(0xFFF3EFE6),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: Row(children: [
-        Icon(live ? Icons.bolt : Icons.wifi_off,
-            size: 16, color: live ? AppColors.greenSoft : AppColors.muted),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(live ? '${t('Live AI')}: $aiModelLabel' : t('On-device AI (offline)'),
-              style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
-        ),
-      ]),
-    );
-  }
-
   Widget _resultCard(CatalogResult r) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
@@ -674,7 +669,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
             const Icon(Icons.sell_outlined, size: 16, color: AppColors.green),
             const SizedBox(width: 6),
             Expanded(
-                child: Text(t('AI-suggested from how similar products are priced'),
+                child: Text(t('Base price is AI-suggested from similar products'),
                     style: const TextStyle(fontSize: 12, color: AppColors.muted))),
           ]),
           if (r.priceMin != null && r.priceMax != null) ...[
@@ -682,10 +677,8 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
             Text('${t('Similar products sell for')} ${rupee(r.priceMin!)}–${rupee(r.priceMax!)}',
                 style: const TextStyle(fontSize: 12, color: AppColors.green, fontWeight: FontWeight.w600)),
           ],
-          const SizedBox(height: 12),
-          _field('Price (₹) — edit if needed', _price, number: true),
           if (r.priceRationale.trim().isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(t(r.priceRationale),
                 style: const TextStyle(
                     fontSize: 11.5,
@@ -693,6 +686,33 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
                     height: 1.3,
                     fontStyle: FontStyle.italic)),
           ],
+          const SizedBox(height: 12),
+          _field('Base price (₹)', _base, number: true, onChanged: (_) => _recalcFinal()),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+                child: _field('Overhead cost (₹)', _overhead,
+                    number: true, onChanged: (_) => _recalcFinal())),
+            const SizedBox(width: 10),
+            Expanded(
+                child: _field('Margin (%)', _margin,
+                    number: true, onChanged: (_) => _recalcFinal())),
+          ]),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+                color: AppColors.creamDeep,
+                borderRadius: BorderRadius.circular(12)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(t('Final price'), style: serif(size: 14, color: AppColors.green)),
+              const SizedBox(height: 8),
+              _field('Price (₹) — edit if needed', _price, number: true),
+              const SizedBox(height: 4),
+              Text(t('(base + overhead) × (1 + margin%)'),
+                  style: const TextStyle(fontSize: 10.5, color: AppColors.muted)),
+            ]),
+          ),
         ]),
       ),
       const SizedBox(height: 12),
