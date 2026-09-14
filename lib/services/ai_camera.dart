@@ -60,6 +60,8 @@ class CatalogResult {
   final String nameLocal;
   final int? priceMin;
   final int? priceMax;
+  final int? suggestedPrice; // AI's competitor-based recommended price (INR)
+  final String priceRationale; // one line on how the price compares to market
   final List<String> tags;
   final List<String> b2cSegments;
   final List<String> b2bSegments;
@@ -81,6 +83,8 @@ class CatalogResult {
     required this.nameLocal,
     required this.priceMin,
     required this.priceMax,
+    this.suggestedPrice,
+    this.priceRationale = '',
     required this.tags,
     required this.b2cSegments,
     required this.b2bSegments,
@@ -108,6 +112,8 @@ class CatalogResult {
       nameLocal: (j['name_local'] ?? '').toString(),
       priceMin: asInt(j['price_min']),
       priceMax: asInt(j['price_max']),
+      suggestedPrice: asInt(j['suggested_price']),
+      priceRationale: (j['price_rationale'] ?? '').toString(),
       tags: strList(j['tags']),
       b2cSegments: strList(j['target_b2c_segments']),
       b2bSegments: strList(j['target_b2b_segments']),
@@ -247,6 +253,8 @@ const Map<String, dynamic> _geminiSchema = {
     'name_local': {'type': 'STRING'},
     'price_min': {'type': 'INTEGER'},
     'price_max': {'type': 'INTEGER'},
+    'suggested_price': {'type': 'INTEGER'},
+    'price_rationale': {'type': 'STRING'},
     'tags': {'type': 'ARRAY', 'items': {'type': 'STRING'}},
     'target_b2c_segments': {'type': 'ARRAY', 'items': {'type': 'STRING'}},
     'target_b2b_segments': {'type': 'ARRAY', 'items': {'type': 'STRING'}},
@@ -264,15 +272,22 @@ Future<CatalogResult> _geminiVision(
 ) async {
   final b64 = base64Encode(_downscaleForUpload(bytes));
   const sys =
-      'You are a cataloging assistant for Indian artisan handicrafts. Look at '
-      'the product photo and return a listing that matches the provided JSON '
-      'schema. Classify category from the enum. Never invent facts you cannot '
-      'see; put uncertain fields in fields_requiring_confirmation. Prices are '
-      'fair INR estimates.';
+      'You are a cataloging + pricing assistant for Indian artisan handicrafts. '
+      'Study the product photo closely — its craft, materials, size, finish and '
+      'level of detailing. Return a listing matching the provided JSON schema. '
+      'Classify category from the enum. Never invent facts you cannot see; put '
+      'uncertain fields in fields_requiring_confirmation.\n'
+      'PRICING: estimate what COMPETITORS charge for the same/similar handmade '
+      'product on Indian marketplaces (Amazon Karigar, Flipkart Samarth, Etsy, '
+      'Okhai, Jaypore, Meesho and local craft bazaars). Set price_min/price_max '
+      'to that competitive INR range and suggested_price to a single fair, '
+      'competitive listing price within it, based on the item\'s detailing and '
+      'quality. In price_rationale, give ONE short sentence explaining the '
+      'comparison (e.g. "Similar hand-carved teak tables list around ₹X–₹Y").';
   final user =
       'Craft hint (may be empty): ${craftHint ?? 'unknown'}\n'
       'Artisan location: ${location ?? 'unknown'}\n'
-      'Draft the marketplace listing from this photo.';
+      'Draft the marketplace listing and competitor-based price from this photo.';
 
   final res = await http
       .post(
@@ -505,6 +520,9 @@ CatalogResult _build(
     nameLocal: p.nameLocal,
     priceMin: p.priceMin,
     priceMax: p.priceMax,
+    suggestedPrice: ((p.priceMin + p.priceMax) / 2).round(),
+    priceRationale:
+        'Based on typical market prices for similar ${p.craftType.toLowerCase()}.',
     tags: [
       p.craftType.toLowerCase().split(' ').first,
       'handmade',

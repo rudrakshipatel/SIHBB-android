@@ -37,23 +37,13 @@ class AiCameraScreen extends StatefulWidget {
 }
 
 class _AiCameraScreenState extends State<AiCameraScreen> {
-  // Suggested-price formula (transparent + editable by the artisan).
-  // P_floor = round50( (C_raw + t*w + O) * (1 + m) ),  O = k * C_raw
-  static const double _wagePerHour = 35; // w: ₹ artisan labour per hour
-  static const double _margin = 0.25; // m: fair profit margin
-  static const double _overheadRate = 0.10; // k: packaging/power/wastage on C_raw
   static const int _maxPhotos = 3;
   static const double _blurWarn = 100; // variance-of-Laplacian warn threshold
 
   final _picker = ImagePicker();
   final _name = TextEditingController();
   final _desc = TextEditingController(); // artisan's description (their language)
-  final _materials = TextEditingController();
-  final _rawCost = TextEditingController();
-  final _hours = TextEditingController();
-  final _rate = TextEditingController();
-  final _inventory = TextEditingController();
-  final _price = TextEditingController();
+  final _price = TextEditingController(); // AI competitor-based price (editable)
   final _tags = TextEditingController();
 
   final List<_Photo> _photos = [];
@@ -78,18 +68,11 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
   void dispose() {
     _name.dispose();
     _desc.dispose();
-    _materials.dispose();
-    _rawCost.dispose();
-    _hours.dispose();
-    _rate.dispose();
-    _inventory.dispose();
     _price.dispose();
     _tags.dispose();
     _recorder.dispose();
     super.dispose();
   }
-
-  double get _wage => double.tryParse(_rate.text.trim()) ?? _wagePerHour;
 
   // ---------------- Photos (1–3) ----------------
 
@@ -306,22 +289,6 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
 
   // ---------------- Analyse & publish ----------------
 
-  void _recalcPrice() {
-    final raw = double.tryParse(_rawCost.text.trim()) ?? 0;
-    final hrs = double.tryParse(_hours.text.trim()) ?? 0;
-    final r = _result;
-    double suggested;
-    if (raw > 0 || hrs > 0) {
-      suggested = (raw + hrs * _wage + raw * _overheadRate) * (1 + _margin);
-    } else if (r?.priceMin != null && r?.priceMax != null) {
-      suggested = (r!.priceMin! + r.priceMax!) / 2;
-    } else {
-      suggested = double.tryParse(_price.text.trim()) ?? 1000;
-    }
-    final rounded = (suggested / 50).round() * 50;
-    setState(() => _price.text = rounded.toString());
-  }
-
   Future<void> _analyze() async {
     final primary = _primary;
     if (primary == null) return;
@@ -342,9 +309,13 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       _result = r;
       _busy = false;
       _name.text = r.productName;
-      _materials.text = r.materials.join(', ');
-      if (_rate.text.trim().isEmpty) _rate.text = _wagePerHour.round().toString();
       _tags.text = r.tags.map((t) => '#${t.replaceAll(' ', '')}').join(' ');
+      // Competitor-based price from the AI (editable).
+      final sp = r.suggestedPrice ??
+          ((r.priceMin != null && r.priceMax != null)
+              ? ((r.priceMin! + r.priceMax!) / 2).round()
+              : 1000);
+      _price.text = sp.toString();
       if (_descLocal) {
         // Keep the artisan's own-language description; use the AI's English
         // copy for buyers.
@@ -353,18 +324,13 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
         _desc.text = r.description; // English
       }
     });
-    _recalcPrice();
   }
 
   Future<void> _publish() async {
     final r = _result;
     if (r == null) return;
-    final price = int.tryParse(_price.text.trim()) ?? (r.priceMin ?? 1000);
-    final mats = _materials.text
-        .split(',')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    final price =
+        int.tryParse(_price.text.trim()) ?? r.suggestedPrice ?? (r.priceMin ?? 1000);
     final localText = _desc.text.trim();
     // Buyers always see English.
     final english = _descLocal
@@ -382,7 +348,7 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       description: english,
       descriptionLocal: _descLocal ? localText : '',
       cultural: r.culturalContext,
-      materials: mats.isEmpty ? r.materials : mats,
+      materials: r.materials,
       c1: AppColors.green,
       c2: AppColors.terracotta,
       imageBytes: _primary?.bytes,
@@ -699,58 +665,34 @@ class _AiCameraScreenState extends State<AiCameraScreen> {
       if (r.fieldsRequiringConfirmation.isNotEmpty) _confirmBanner(r),
       Panel(child: _field('Product name', _name)),
       const SizedBox(height: 14),
-      Text(t('A few questions to price it fairly'),
+      Text(t('Suggested price'),
           style: serif(size: 15, color: AppColors.green)),
       const SizedBox(height: 8),
       Panel(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _field('Which material(s) is it made from?', _materials),
-          const SizedBox(height: 12),
           Row(children: [
+            const Icon(Icons.sell_outlined, size: 16, color: AppColors.green),
+            const SizedBox(width: 6),
             Expanded(
-                child: _field('Raw material cost (₹)', _rawCost,
-                    number: true, onChanged: (_) => _recalcPrice())),
-            const SizedBox(width: 10),
-            Expanded(
-                child: _field('Hours to make', _hours,
-                    number: true, onChanged: (_) => _recalcPrice())),
+                child: Text(t('AI-suggested from how similar products are priced'),
+                    style: const TextStyle(fontSize: 12, color: AppColors.muted))),
           ]),
+          if (r.priceMin != null && r.priceMax != null) ...[
+            const SizedBox(height: 8),
+            Text('${t('Similar products sell for')} ${rupee(r.priceMin!)}–${rupee(r.priceMax!)}',
+                style: const TextStyle(fontSize: 12, color: AppColors.green, fontWeight: FontWeight.w600)),
+          ],
           const SizedBox(height: 12),
-          Row(children: [
-            Expanded(
-                child: _field('Rate per hour (₹)', _rate,
-                    number: true, onChanged: (_) => _recalcPrice())),
-            const SizedBox(width: 10),
-            Expanded(child: _field('Inventory left', _inventory, number: true)),
-          ]),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.creamDeep,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Icon(Icons.sell_outlined, size: 16, color: AppColors.green),
-                const SizedBox(width: 6),
-                Text(t('Suggested price'),
-                    style: serif(size: 14, color: AppColors.green)),
-                const Spacer(),
-                TextButton(
-                    onPressed: _recalcPrice,
-                    style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                    child: Text(t('Recalculate'),
-                        style: const TextStyle(fontSize: 11))),
-              ]),
-              const SizedBox(height: 8),
-              _field('Price (₹) — edit if needed', _price, number: true),
-            ]),
-          ),
+          _field('Price (₹) — edit if needed', _price, number: true),
+          if (r.priceRationale.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(t(r.priceRationale),
+                style: const TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.muted,
+                    height: 1.3,
+                    fontStyle: FontStyle.italic)),
+          ],
         ]),
       ),
       const SizedBox(height: 12),
