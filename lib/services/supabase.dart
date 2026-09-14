@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../data.dart';
 import '../theme.dart';
 import 'identity.dart';
+import 'backend.dart';
 
 /// Publishes listings to Supabase using the ANON key only (safe to ship in the
 /// client; access is governed by RLS). The service_role key must NEVER be
@@ -150,11 +151,14 @@ Future<List<Product>> fetchRemoteProducts() async {
   return list.map(_mapRow).toList();
 }
 
-/// Replaces [remoteProducts] with the latest from Supabase. Best-effort: keeps
+/// Replaces [remoteProducts] with the latest catalogue. Prefers the FastAPI
+/// backend when BACKEND_URL is configured, else Supabase. Best-effort: keeps
 /// whatever is already loaded on failure (e.g. offline).
 Future<void> refreshRemoteProducts() async {
   try {
-    final list = await fetchRemoteProducts();
+    final list = backendConfigured
+        ? await fetchBackendCatalog()
+        : await fetchRemoteProducts();
     remoteProducts
       ..clear()
       ..addAll(list);
