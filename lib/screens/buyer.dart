@@ -8,6 +8,7 @@ import 'pages.dart';
 import 'language.dart';
 import '../services/supabase.dart';
 import '../services/i18n.dart';
+import '../services/beckn.dart';
 
 class BuyerShell extends StatefulWidget {
   final String? initialCategory;
@@ -245,6 +246,62 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
+  bool _placing = false;
+
+  Future<void> _checkoutOndc() async {
+    if (cart.isEmpty || _placing) return;
+    if (!becknConfigured) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(t('ONDC checkout needs the backend to be running'))));
+      return;
+    }
+    setState(() => _placing = true);
+    try {
+      final order = await becknCheckout(List.of(cart), buyer: 'Arjun Mehta');
+      if (!mounted) return;
+      setState(() {
+        cart.clear();
+        _placing = false;
+      });
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.check_circle, color: AppColors.greenSoft, size: 34),
+          title: Text(t('Order placed on ONDC')),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _row(t('Order'), order.orderId),
+            _row(t('Amount'), rupee(order.amount)),
+            _row(t('Payment'), '${t('ONDC / UPI')} · ${order.paymentStatus}'),
+            _row(t('Network'), '${order.domain} · ${order.bppId}'),
+            const SizedBox(height: 8),
+            Text(t('Settled directly to the artisan via the ONDC network.'),
+                style: const TextStyle(fontSize: 11.5, color: AppColors.muted, height: 1.3)),
+          ]),
+          actions: [
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(t('Done')),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _placing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${t('ONDC order failed')}: $e')));
+    }
+  }
+
+  Widget _row(String k, String v) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(children: [
+          Text('$k: ', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+          Expanded(child: Text(v, style: const TextStyle(fontSize: 12.5))),
+        ]),
+      );
+
   @override
   Widget build(BuildContext context) {
     final total = cart.fold<int>(0, (s, p) => s + p.price);
@@ -321,18 +378,20 @@ class _CartScreenState extends State<CartScreen> {
                   style: serif(size: 20, color: AppColors.green)),
             ]),
             const Spacer(),
-            FilledButton(
+            FilledButton.icon(
               style: FilledButton.styleFrom(
                   backgroundColor: AppColors.terracotta,
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14)),
-              onPressed: () {
-                final n = cart.length;
-                setState(() => cart.clear());
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('Inquiry sent for $n item(s)')));
-              },
-              child: Text(t('Send inquiry')),
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 14)),
+              onPressed: _placing ? null : _checkoutOndc,
+              icon: _placing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.storefront, size: 18),
+              label: Text(_placing ? t('Placing…') : t('Checkout · ONDC')),
             ),
           ]),
         ),
