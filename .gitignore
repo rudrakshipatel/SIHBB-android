@@ -50,3 +50,4 @@ hastakala-ai.key
 
 # Local API keys — never committed
 secrets.json
+android/app/google-services.json

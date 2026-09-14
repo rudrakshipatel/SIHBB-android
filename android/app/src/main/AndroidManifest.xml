@@ -3,6 +3,8 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Required for "Describe by voice" audio capture. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Required for order push notifications on Android 13+. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="Hastakala"
         android:name="${applicationName}"

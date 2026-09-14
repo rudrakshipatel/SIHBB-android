@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
+    id("com.google.gms.google-services")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -41,4 +42,10 @@ android {
 
 flutter {
     source = "../.."
+}
+
+// firebase-messaging 25+ merged the old firebase-iid; drop the stale module a
+// transitive dependency still pulls in, which otherwise duplicates classes.
+configurations.all {
+    exclude(group = "com.google.firebase", module = "firebase-iid")
 }

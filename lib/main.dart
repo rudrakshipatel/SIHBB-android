@@ -5,6 +5,7 @@ import 'screens/landing.dart';
 import 'services/store.dart';
 import 'services/identity.dart';
 import 'services/i18n.dart';
+import 'services/fcm.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +20,7 @@ void main() async {
   } catch (_) {
     // First run or storage unavailable — start with an empty catalogue.
   }
+  initFcm(); // register for order push (non-blocking; self-guards)
   runApp(const HastakalaApp());
 }
 
