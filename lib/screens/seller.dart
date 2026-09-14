@@ -9,6 +9,7 @@ import 'ai_camera.dart';
 import 'language.dart';
 import '../services/identity.dart';
 import '../services/i18n.dart';
+import '../services/orders.dart';
 
 class SellerShell extends StatefulWidget {
   const SellerShell({super.key});
@@ -18,24 +19,165 @@ class SellerShell extends StatefulWidget {
 
 class _SellerShellState extends State<SellerShell> {
   int _tab = 1; // default to the Add tab
+
+  @override
+  void initState() {
+    super.initState();
+    ordersFeed.addListener(_onFeed);
+    ordersFeed.start(); // poll the backend for incoming orders
+  }
+
+  @override
+  void dispose() {
+    ordersFeed.removeListener(_onFeed);
+    ordersFeed.stop();
+    super.dispose();
+  }
+
+  void _onFeed() {
+    if (!mounted) return;
+    final n = ordersFeed.lastNewCount;
+    if (n > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: AppColors.green,
+        content: Text('🔔 ${t('New order received')}${n > 1 ? ' ×$n' : ''}'),
+        action: SnackBarAction(
+            label: t('View'),
+            textColor: Colors.white,
+            onPressed: () => setState(() {
+                  _tab = 2;
+                  ordersFeed.markSeen();
+                })),
+      ));
+    }
+    setState(() {}); // refresh the badge
+  }
+
   @override
   Widget build(BuildContext context) {
-    final pages = [const _MyProducts(), const _AddProduct(), const _SellerProfile()];
+    final pages = [
+      const _MyProducts(),
+      const _AddProduct(),
+      const OrdersScreen(),
+      const _SellerProfile()
+    ];
     return Localized((context) => Scaffold(
       body: SafeArea(bottom: false, child: pages[_tab]),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
+        onDestinationSelected: (i) => setState(() {
+              _tab = i;
+              if (i == 2) ordersFeed.markSeen();
+            }),
         backgroundColor: Colors.white,
         indicatorColor: AppColors.creamDeep,
         destinations: [
           NavigationDestination(icon: const Icon(Icons.inventory_2_outlined), selectedIcon: const Icon(Icons.inventory_2), label: t('Products')),
           NavigationDestination(icon: const Icon(Icons.add_circle_outline), selectedIcon: const Icon(Icons.add_circle), label: t('Add')),
+          NavigationDestination(
+              icon: Badge(
+                isLabelVisible: ordersFeed.unseen > 0,
+                label: Text('${ordersFeed.unseen}'),
+                child: const Icon(Icons.receipt_long_outlined),
+              ),
+              selectedIcon: const Icon(Icons.receipt_long),
+              label: t('Orders')),
           NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person), label: t('Profile')),
         ],
       ),
     ));
   }
+}
+
+/// Seller Orders — incoming orders (Hastakala + ONDC) polled from the backend.
+class OrdersScreen extends StatefulWidget {
+  const OrdersScreen({super.key});
+  @override
+  State<OrdersScreen> createState() => _OrdersScreenState();
+}
+
+class _OrdersScreenState extends State<OrdersScreen> {
+  @override
+  void initState() {
+    super.initState();
+    ordersFeed.markSeen();
+    ordersFeed.poll();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: ordersFeed,
+      builder: (context, _) {
+        final orders = ordersFeed.orders;
+        return Column(children: [
+          AppBar(
+              title: Text(t('Orders'), style: serif(size: 17, color: AppColors.green)),
+              automaticallyImplyLeading: false,
+              actions: [_buyerSwitchButton(context)]),
+          Expanded(
+            child: !ordersFeed.configured
+                ? _empty(t('Orders will appear here once the backend is running.'))
+                : orders.isEmpty
+                    ? RefreshIndicator(
+                        onRefresh: ordersFeed.poll,
+                        child: ListView(children: [
+                          const SizedBox(height: 120),
+                          _empty(t('No orders yet — you\'ll be notified when one arrives.')),
+                        ]))
+                    : RefreshIndicator(
+                        onRefresh: ordersFeed.poll,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: orders.length,
+                          itemBuilder: (_, i) => _orderCard(orders[i]),
+                        )),
+          ),
+        ]);
+      },
+    );
+  }
+
+  Widget _empty(String msg) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.receipt_long_outlined, size: 44, color: AppColors.muted),
+            const SizedBox(height: 10),
+            Text(msg, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.muted)),
+          ]),
+        ),
+      );
+
+  Widget _orderCard(SellerOrder o) => Card(
+        margin: const EdgeInsets.only(bottom: 10),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: AppColors.creamDeep, borderRadius: BorderRadius.circular(6)),
+                  child: Text(o.channel, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.green))),
+              const SizedBox(width: 8),
+              Text('#${o.orderId}', style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+              const Spacer(),
+              Text(rupee(o.amount), style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.terracotta)),
+            ]),
+            const SizedBox(height: 8),
+            Text(o.items.map(t).join(', '), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            const SizedBox(height: 2),
+            Text('${t('Buyer')}: ${t(o.buyer)}', style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+            const SizedBox(height: 8),
+            Row(children: [
+              const Icon(Icons.check_circle, size: 15, color: AppColors.greenSoft),
+              const SizedBox(width: 6),
+              Text('${t('Payment')}: ${t(o.paymentStatus)}',
+                  style: const TextStyle(fontSize: 12, color: AppColors.greenSoft, fontWeight: FontWeight.w600)),
+            ]),
+          ]),
+        ),
+      );
 }
 
 /// Top-right "Buyer" button to switch the whole app to the buyer experience.
